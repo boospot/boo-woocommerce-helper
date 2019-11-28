@@ -115,8 +115,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			global $post;
 
 
-			$tabs = $this->get_fields_tabs();
-
 			foreach ( $this->get_tabs_fields() as $tab_id => $fields ) {
 				$this->tab_start( $tab_id );
 
@@ -126,7 +124,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 						$field['value'] = get_post_meta( $post->ID, $field['id'], true );
 					}
 
-					printf( '<p class="form-field %1$s %s"><label for="%1$s">%3$s</label>',
+					printf( '<p class="form-field %1$s %2$s"><label for="%1$s">%3$s</label>',
 						sanitize_html_class( $field['id'] ) . '_field ',
 						sanitize_html_class( $field['wrapper_class'] ),
 						wp_kses_post( $field['label'] )
