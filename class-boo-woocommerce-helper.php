@@ -76,14 +76,44 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			add_filter( 'woocommerce_product_data_tabs', array( $this, 'register_tabs' ) );
 
-			add_filter( 'woocommerce_product_data_panels', array( $this, 'display_tab_content' ) ); // WC 2.6 and up
+			add_filter( 'woocommerce_product_data_panels', array( $this, 'display_tab_fields' ) ); // WC 2.6 and up
+
+			add_action( 'woocommerce_process_product_meta', array( $this, 'save_tab_fields' ) );
+
+		}
+
+		/**
+		 *
+		 */
+		public function save_tab_fields( $post_id ) {
+
+			$product = wc_get_product( $post_id );
+
+			foreach ( $this->get_tabs_fields() as $tab_id => $fields ) {
+
+				foreach ( $fields as $field ) {
+					$dirty_value = isset( $_POST[ $field['id'] ] ) ? $_POST[ $field['id'] ] : '';
+					$clean_value = call_user_func(
+						( is_callable( $field['sanitize_callback'] ) )
+							? $field['sanitize_callback']
+							: $this->get_sanitize_callback_method( $field['type'] ),
+						$dirty_value
+					);
+					$product->update_meta_data( $field['id'], $clean_value );
+				}
+
+			}
+
+			$product->save();
 
 		}
 
 		/**
 		 * Display tab contents
 		 */
-		public function display_tab_content() {
+		public function display_tab_fields() {
+			global $post;
+
 
 			$tabs = $this->get_fields_tabs();
 
@@ -92,12 +122,23 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 				foreach ( $fields as $field ) {
 
+					if ( $post->ID ) {
+						$field['value'] = get_post_meta( $post->ID, $field['id'], true );
+					}
+
+					printf( '<p class="form-field %1$s %s"><label for="%1$s">%3$s</label>',
+						sanitize_html_class( $field['id'] ) . '_field ',
+						sanitize_html_class( $field['wrapper_class'] ),
+						wp_kses_post( $field['label'] )
+					);
 					call_user_func(
 						( is_callable( $field['callback'] ) )
 							? $field['callback']
 							: $this->get_field_markup_callback_method( $field['type'] ),
 						$field
 					);
+
+					printf( '</p>' );
 				}
 
 				$this->tab_end();
@@ -363,6 +404,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				'label'             => '',
 				'desc'              => '',
 				'type'              => 'text',
+				'wrapper_class'     => '',
 				'placeholder'       => '',
 				'default'           => '',
 				'options'           => array(),
