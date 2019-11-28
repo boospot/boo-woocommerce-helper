@@ -57,7 +57,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @var array
 		 */
-		protected $settings_fields = array();
+		protected $tabs_fields = array();
 
 		public function __construct( $config_array = null ) {
 
@@ -76,12 +76,47 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			add_filter( 'woocommerce_product_data_tabs', array( $this, 'register_tabs' ) );
 
+			add_filter( 'woocommerce_product_data_panels', array( $this, 'display_tab_content' ) ); // WC 2.6 and up
 
-			$tab = $this->get_fields_tabs();
+		}
 
-			$this->var_dump_pretty( $tab );
+		/**
+		 * Display tab contents
+		 */
+		public function display_tab_content() {
 
+			$tabs = $this->get_fields_tabs();
 
+			foreach ( $this->get_tabs_fields() as $tab_id => $fields ) {
+				$this->tab_start( $tab_id );
+
+				foreach ( $fields as $field ) {
+
+					call_user_func(
+						( is_callable( $field['callback'] ) )
+							? $field['callback']
+							: $this->get_field_markup_callback_method( $field['type'] ),
+						$field
+					);
+				}
+
+				$this->tab_end();
+			}
+
+		}
+
+		/**
+		 *
+		 */
+		public function tab_start( $tab_id ) {
+			printf( '<div id="%s" class="panel woocommerce_options_panel"><div class="options_group">', $tab_id . '_options' );
+		}
+
+		/**
+		 *
+		 */
+		public function tab_end() {
+			echo '</div></div>';
 		}
 
 		/**
@@ -117,13 +152,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		}
 
-		protected function get_default_config() {
-
-			return array(
-				'menu' => $this->get_default_config_menu(),
-			);
-
-		}
 
 		/**
 		 * Set Properties of the class
@@ -131,7 +159,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		protected function set_properties( array $config_array ) {
 
 			// Normalise config array
-			$config_array = wp_parse_args( $config_array, $this->get_default_config() );
 
 			if ( isset( $config_array['prefix'] ) ) {
 				$this->prefix = ( ! empty( $config_array['prefix'] ) ) ? sanitize_key( $config_array['prefix'] ) : '';
@@ -141,19 +168,11 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				$this->set_tabs( $config_array['tabs'] );
 			}
 
-			// Do we have menu config, if yes, call the method
-//			if ( isset( $config_array['menu'] ) ) {
-//				$this->set_menu( $config_array['menu'] );
-//			}
-
 			// Do we have fields config, if yes, call the method
 			if ( isset( $config_array['fields'] ) ) {
 				$this->set_fields( $config_array['fields'] );
 			}
 
-			if ( isset( $config_array['links'] ) ) {
-				$this->set_links( $config_array['links'] );
-			}
 
 			$this->set_active_tab();
 
@@ -170,26 +189,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 					: $this->fields_tabs[0]['id'];
 		}
 
-		public function set_links( array $config_links ) {
-
-			if (
-				isset( $config_links['plugin_basename'] ) &&
-				! empty( $config_links['plugin_basename'] )
-			) {
-				$this->plugin_basename = $config_links['plugin_basename'];
-				$this->action_links    = isset( $config_links['action_links'] ) ? $config_links['action_links'] : true;
-
-				$prefix = is_network_admin() ? 'network_admin_' : '';
-
-				add_filter(
-					"{$prefix}plugin_action_links_{$this->plugin_basename}",
-					array( $this, 'plugin_action_links' ),
-					10, // priority
-					4   // parameters
-				);
-			}
-
-		}
 
 		public function get_default_settings_url() {
 
@@ -224,152 +223,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		}
 
-		/**
-		 * Register "settings" for plugin option page in plugins list
-		 *
-		 * @param array $links plugin links
-		 *
-		 * @return array possibly modified $links
-		 */
-		public function plugin_action_links( $links, $plugin_file, $plugin_data, $context ) {
-			/**
-			 * Documentation :
-			 * https://codex.wordpress.org/Plugin_API/Filter_Reference/plugin_action_links_(plugin_file_name)
-			 */
-
-			// BOOL of settings is given true | false
-			if ( is_bool( $this->action_links ) ) {
-
-				// FALSE: If it is false, no need to go further
-				if ( ! $this->action_links ) {
-					return $links;
-				}
-				// TRUE: if Settings link is not defined, lets create one
-				if ( $this->action_links ) {
-					return array_merge( $links, $this->get_default_settings_link() );
-				}
-
-			} // if ( is_bool( $this->config['settings_link'] ) )
-
-
-			// Admin URL of settings is given
-			if ( ! is_bool( $this->action_links ) && ! is_array( $this->action_links ) ) {
-
-				$settings_link = array(
-					'<a href="' . admin_url( esc_url( $this->action_links ) ) . '">' . __( 'Settings' ) . '</a>',
-				);
-
-				return array_merge( $settings_link, $links );
-			}
-
-			// Array of settings_link is given
-			if ( is_array( $this->action_links ) ) {
-
-				$settings_link_array = array();
-
-				foreach ( $this->action_links as $link ) {
-
-					$link_text         = isset( $link['text'] ) ? sanitize_text_field( $link['text'] ) : __( 'Settings', '' );
-					$link_url_un_clean = isset( $link['url'] ) ? $link['url'] : '#';
-
-					$link_type = isset( $link['type'] ) ? sanitize_key( $link['type'] ) : 'default';
-
-					switch ( $link_type ) {
-						case ( 'external' ):
-							$link_url = esc_url_raw( $link_url_un_clean );
-							break;
-
-						case ( 'internal' ):
-							$link_url = admin_url( esc_url( $link_url_un_clean ) );
-							break;
-
-						default:
-
-							$link_url = $this->get_default_settings_url();
-
-					}
-
-					$settings_link_array[] = '<a href="' . $link_url . '">' . $link_text . '</a>';
-
-				}
-
-				return array_merge( $settings_link_array, $links );
-
-
-			} // if (  $this->action_links ) )
-
-			// if nothing is returned so far, return original $links
-			return $links;
-
-		}
-
-
-		/**
-		 * Register plugin option page
-		 */
-		public function set_menu( $config_menu ) {
-
-			$this->config_menu = array_merge_recursive( $this->config_menu, wp_parse_args( $config_menu, $this->get_default_config_menu() ) );
-
-			$this->slug = $this->config_menu['slug'] =
-				isset( $this->config_menu['slug'] )
-					? sanitize_key( $this->config_menu['slug'] )
-					: sanitize_title( $this->config_menu['page_title'] );
-
-
-			// Is it a main menu or sub_menu
-			if ( ! $this->config_menu['submenu'] ) {
-
-				add_menu_page(
-					$this->config_menu['page_title'],
-					$this->config_menu['menu_title'],
-					$this->config_menu['capability'],
-					$this->config_menu['slug'], //slug
-					array( $this, 'display_page' ),
-					$this->config_menu['icon'],
-					$this->config_menu['position']
-				);
-
-			} else {
-
-				add_submenu_page(
-					$this->config_menu['parent'],
-					$this->config_menu['page_title'],
-					$this->config_menu['menu_title'],
-					$this->config_menu['capability'],
-					$this->config_menu['slug'], // slug
-					array( $this, 'display_page' )
-				);
-
-			}
-
-		}
-
-		/**
-		 * Get default config for menu
-		 * @return array $default
-		 */
-		public function get_default_config_menu() {
-
-			return apply_filters( 'boo_settings_filter_default_menu_array', array(
-				//The name of this page
-				'page_title' => __( 'Plugin Options' ),
-				// //The Menu Title in Wp Admin
-				'menu_title' => __( 'Plugin Options' ),
-				// The capability needed to view the page
-				'capability' => 'manage_options',
-				// dashicons id or url to icon
-				// https://developer.wordpress.org/resource/dashicons/
-				'icon'       => '',
-				// Required for submenu
-				'submenu'    => false,
-				// position
-				'position'   => 100,
-				// For sub menu, we can define parent menu slug (Defaults to Options Page)
-				'parent'     => 'options-general.php',
-			) );
-
-		}
 
 		//DEBUG
 		public function write_log( $type, $log_line ) {
@@ -385,7 +238,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 */
 		public function get_field_types() {
 
-			foreach ( $this->settings_fields as $tabs_fields ) {
+			foreach ( $this->tabs_fields as $tabs_fields ) {
 				foreach ( $tabs_fields as $field ) {
 					$this->field_types[] = isset( $field['type'] ) ? sanitize_key( $field['type'] ) : 'text';
 				}
@@ -403,7 +256,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			$current_screen = get_current_screen();
 
 			return ( 'product' === $current_screen->post_type );
-//			return substr( $current_screen->id, - strlen( $this->config_menu['slug'] ) ) === $this->config_menu['slug'];
 
 		}
 
@@ -419,12 +271,12 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			}
 
 			// Load Color Picker if required
-			if ( in_array( 'color', $this->get_field_types() ) ) {
+			if ( in_array( 'color', $this->get_field_types(), true ) ) {
 				wp_enqueue_style( 'wp-color-picker' );
 				wp_enqueue_script( 'wp-color-picker' );
 			}
 
-			if ( in_array( 'media', $this->get_field_types() ) ) {
+			if ( in_array( 'media', $this->get_field_types(), true ) ) {
 				wp_enqueue_media();
 			}
 			wp_enqueue_script( 'jquery' );
@@ -442,7 +294,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			$this->normalize_tabs();
 
-
 			$this->tabs_count = count( $this->fields_tabs );
 			$this->tabs_ids   = array_values( $this->fields_tabs );
 
@@ -455,7 +306,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 * @param array $fields settings fields array
 		 */
 		public function set_fields( $fields ) {
-			$this->settings_fields = array_merge_recursive( $this->settings_fields, $fields );
+			$this->tabs_fields = array_merge_recursive( $this->tabs_fields, $fields );
 			$this->normalize_fields();
 			$this->setup_hooks();
 
@@ -500,12 +351,12 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				'id'       => $tab['id'],
 				'label'    => '',
 				'priority' => null,
+				'target'   => $tab['id'] . '_options',
 				'class'    => array( 'show_if_simple', 'show_if_variable', $tab['id'] ),
 			);
 		}
 
 		public function get_default_field_args( $field, $tab = 'default' ) {
-
 
 			return array(
 				'id'                => $field['id'],
@@ -547,10 +398,10 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		public function normalize_fields() {
 
-			foreach ( $this->settings_fields as $tab_id => $fields ) {
+			foreach ( $this->tabs_fields as $tab_id => $fields ) {
 				if ( is_array( $fields ) && ! empty( $fields ) ) {
 					foreach ( $fields as $i => $field ) {
-						$this->settings_fields[ $tab_id ][ $i ] =
+						$this->tabs_fields[ $tab_id ][ $i ] =
 							wp_parse_args(
 								$field,
 								$this->get_default_field_args( $field, $tab_id )
@@ -618,13 +469,13 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 							}
 
 							// for tabs
-							settings_fields( $this->get_options_group( $tab['id'] ) );
+							tabs_fields( $this->get_options_group( $tab['id'] ) );
 							do_fields_tabs( $this->get_page_id_for_tabs( $tab['id'] ) );
 						endforeach; // end foreach
 
 					} else {
 						// for tab-less
-						settings_fields( $this->get_options_group() );
+						tabs_fields( $this->get_options_group() );
 						do_fields_tabs( $this->get_page_id_for_tabs() );
 
 					}
@@ -681,7 +532,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		public function add_settings_field_loop() {
 
 			//register settings fields
-			foreach ( $this->settings_fields as $tab_id => $fields ) {
+			foreach ( $this->tabs_fields as $tab_id => $fields ) {
 
 				if ( $this->is_tabs ) {
 					if ( $tab_id !== $this->active_tab ) {
@@ -710,7 +561,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		public function register_settings() {
 			// creates our settings in the options table
-			foreach ( $this->settings_fields as $tab_id => $fields ) :
+			foreach ( $this->tabs_fields as $tab_id => $fields ) :
 
 				foreach ( $fields as $field ) :
 
@@ -1351,14 +1202,14 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		}
 
-		public function get_settings_fields() {
+		public function get_tabs_fields() {
 
-			return $this->settings_fields;
+			return $this->tabs_fields;
 		}
 
-		public function get_settings_fields_ids() {
+		public function get_tabs_fields_ids() {
 
-			foreach ( $this->settings_fields as $tabs_fields ) {
+			foreach ( $this->tabs_fields as $tabs_fields ) {
 				foreach ( $tabs_fields as $field ) {
 					$this->fields_ids[] = $field['id'];
 				}
