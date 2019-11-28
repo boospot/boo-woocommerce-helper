@@ -1,0 +1,29 @@
+{
+  "name": "boospot/boo-woocommerce-helper",
+  "type": "library",
+  "keywords": [
+    "wordpress",
+    "wp-admin",
+    "wordpress-plugin",
+    "custom fields",
+    "custom fields WooCommerce",
+    "woocommerce"
+  ],
+  "description": "Helper class that lets you create woocommerce fields and tabs for custom fields.",
+  "homepage": "https://github.com/boospot/boo-woocommerce-helper",
+  "license": "GPL-3.0+",
+  "minimum-stability": "stable",
+  "authors": [
+    {
+      "name": "Rao Abid Ali",
+      "email": "rao@booskills.com",
+      "homepage": "https://booskills.com",
+      "role": "Developer"
+    }
+  ],
+  "autoload": {
+    "files": [
+      "class-boo-woocommerce-helper.php"
+    ]
+  }
+}
