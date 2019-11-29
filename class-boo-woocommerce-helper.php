@@ -16,34 +16,14 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		public $log = false;
 
-		public $plugin_basename = '';
-
-		public $action_links = array();
-
-		public $config_menu = array();
-
 		public $field_types = array();
-
-		protected $is_tabs = false;
-
-		public $slug;
-
-		protected $active_tab;
-
-		protected $tabs_count;
 
 		protected $tabs_ids;
 
 		protected $fields_ids;
 
 		// flag for options processing
-		protected $is_settings_saved_once = false;
-
-		protected $sanitized_data;
-
 		protected $prefix = '';
-
-		protected $is_simple_options = true;
 
 		/**
 		 * settings tabs array
@@ -83,7 +63,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		/**
-		 *
+		 * Save fields
 		 */
 		public function save_tab_fields( $post_id ) {
 
@@ -109,7 +89,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		/**
-		 *
+		 * Display field Label
 		 */
 		public function print_field_label( $field ) {
 
@@ -185,15 +165,10 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		}
 
+
 		/**
-		 * Custom Product tabs
+		 * Hooks to Add scripts and CSS
 		 */
-		public function custom_product_tabs() {
-
-
-		}
-
-
 		public function setup_hooks() {
 
 			add_action( 'admin_enqueue_scripts', array( $this, 'admin_enqueue_scripts' ) );
@@ -223,55 +198,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			}
 
 
-			$this->set_active_tab();
-
-
 		}
-
-		/**
-		 *
-		 */
-		public function set_active_tab() {
-			$this->active_tab =
-				( isset( $_GET['tab'] ) )
-					? sanitize_key( $_GET['tab'] )
-					: $this->fields_tabs[0]['id'];
-		}
-
-
-		public function get_default_settings_url() {
-
-			if ( $this->config_menu['submenu'] ) {
-				$options_base_file_name = $this->config_menu['parent'];
-				if ( in_array( $options_base_file_name, array(
-					'options-general.php',
-					'edit-comments.php',
-					'plugins.php',
-					'edit.php',
-					'upload.php',
-					'themes.php',
-					'users.php',
-					'tools.php'
-				) ) ) {
-					return admin_url( "{$options_base_file_name}?page={$this->config_menu['slug']}" );
-				} else {
-					return admin_url( "{$options_base_file_name}&page={$this->config_menu['slug']}" );
-				}
-			} else {
-				return admin_url( "admin.php?page={$this->config_menu['slug']}" );
-			}
-
-
-		}
-
-		public function get_default_settings_link() {
-
-			return array(
-				'<a href="' . $this->get_default_settings_url() . '">' . __( 'Settings' ) . '</a>',
-			);
-
-		}
-
 
 		//DEBUG
 		public function write_log( $type, $log_line ) {
@@ -382,10 +309,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		}
 
-		public function get_markup_placeholder( $placeholder ) {
-			return ' placeholder="' . esc_html( $placeholder ) . '" ';
-		}
-
 
 		public function get_sanitize_callback_method( $type ) {
 
@@ -413,8 +336,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		public function get_default_tabs_args( $tab ) {
-
-
 			return array(
 				'id'       => $tab['id'],
 				'label'    => '',
@@ -452,7 +373,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		/**
-		 *
+		 * Process tabs to nrmalise its array
 		 */
 		public function normalize_tabs() {
 
@@ -544,176 +465,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			}
 
-		}
-
-
-		/**
-		 *
-		 */
-		public function get_page_id_for_tabs( $tab_id = '' ) {
-//			return $this->config_menu['slug'] . '_' . $tab_id;
-			return $this->config_menu['slug'];
-		}
-
-		public function get_options_group( $tab_id = '' ) {
-			return str_replace( '-', '_', $this->slug ) . "_" . $tab_id;
-//			return str_replace( '-', '_', $this->slug );
-		}
-
-		function display_page() {
-
-			// Save Default options in DB with default values
-//			$this->set_default_db_options();
-
-			if ( 'options-general.php' != $this->config_menu['parent'] ) {
-				settings_errors();
-			}
-
-			echo '<div class="wrap">';
-			echo "<h1>" . get_admin_page_title() . "</h1>";
-
-			// If Debug is ON
-			if ( $this->debug ) {
-				echo "<b>TYPES of fields</b>";
-				$this->var_dump_pretty( $this->get_field_types() );
-
-				if ( $this->is_tabs ) {
-					echo "<b>Active Tab Options Array</b>";
-					$this->var_dump_pretty( get_option( $this->active_tab ) );
-
-				}
-			}
-
-			?>
-            <div class="metabox-holder">
-				<?php
-				if ( $this->is_tabs ) {
-					$this->show_navigation();
-				}
-				?>
-                <form method="post" action="options.php">
-					<?php
-
-					if ( $this->is_tabs ) {
-						foreach ( $this->fields_tabs as $tab ) :
-							if ( $tab['id'] !== $this->active_tab ) {
-								continue;
-							}
-
-							// for tabs
-							tabs_fields( $this->get_options_group( $tab['id'] ) );
-							do_fields_tabs( $this->get_page_id_for_tabs( $tab['id'] ) );
-						endforeach; // end foreach
-
-					} else {
-						// for tab-less
-						tabs_fields( $this->get_options_group() );
-						do_fields_tabs( $this->get_page_id_for_tabs() );
-
-					}
-
-					?>
-                    <div style="padding-left: 10px">
-						<?php submit_button(); ?>
-                    </div>
-
-                </form>
-            </div>
-			<?php
-
-			// Call General Scripts
-			$this->script_general();
-			?>
-            </div>
-			<?php
-		}
-
-		public function add_settings_tab() {
-
-			//register settings tabs
-			foreach ( $this->fields_tabs as $tab ) {
-
-				if ( $this->is_tabs ) {
-					if ( $tab['id'] !== $this->active_tab ) {
-						continue;
-					}
-				}
-
-				// Callback for tab Description
-				if ( isset( $tab['callback'] ) && is_callable( $tab['callback'] ) ) {
-					$callback = $tab['callback'];
-				} else if ( isset( $tab['desc'] ) && ! empty( $tab['desc'] ) ) {
-					$callback = function () use ( $tab ) {
-						echo "<div class='inside'>" . esc_html( $tab['desc'] ) . "</div>";
-					};
-				} else {
-					$callback = null;
-				}
-
-//				add_settings_tab(
-//					$tab['id'],
-//					$tab['title'],
-//					$callback,
-//					$this->get_page_id_for_tabs( $tab['id'] ) // page
-//				);
-
-			}
-
-		}
-
-		public function add_settings_field_loop() {
-
-			//register settings fields
-			foreach ( $this->tabs_fields as $tab_id => $fields ) {
-
-				if ( $this->is_tabs ) {
-					if ( $tab_id !== $this->active_tab ) {
-						continue;
-					}
-				}
-
-				foreach ( $fields as $field ) :
-
-					$field['value'] = get_option( $field['name'], $field['default'] );
-
-					add_settings_field(
-						$field['name'],
-						$field['label'],
-						( is_callable( $field['callback'] ) )
-							? $field['callback']
-							: $this->get_field_markup_callback_method( $field['type'] ),
-						$this->get_page_id_for_tabs( $tab_id ), // page
-						$tab_id, // tab
-						$field  // args
-					);
-				endforeach;
-			}
-
-		}
-
-		public function register_settings() {
-			// creates our settings in the options table
-			foreach ( $this->tabs_fields as $tab_id => $fields ) :
-
-				foreach ( $fields as $field ) :
-
-					register_setting(
-						( $this->is_tabs ) ?
-							$this->get_options_group( $field['tab'] )
-							: $this->get_options_group(), // options_group
-						$field['name'], // options_id
-						array(
-//								'type'              => $field['type'],
-							'description'       => $field['desc'],
-							'sanitize_callback' => ( is_callable( $field['sanitize_callback'] ) )
-								? $field['sanitize_callback']
-								: $this->get_sanitize_callback_method( $field['type'] ),
-							'show_in_rest'      => $field['show_in_rest'],
-							'default'           => $field['default'],
-						)
-					);
-				endforeach;
-			endforeach;
 		}
 
 
@@ -837,23 +588,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 
 		/**
-		 * Initialize and registers the settings tabs and fileds to WordPress
-		 *
-		 * Usually this should be called at `admin_init` hook.
-		 *
-		 * This function gets the initiated settings tabs and fields. Then
-		 * registers them to WordPress and ready for use.
-		 */
-		function admin_init() {
-
-			$this->add_settings_tab();
-//			$this->add_settings_field_loop();
-//			$this->register_settings();
-
-
-		}
-
-		/**
 		 * Get field description for display
 		 *
 		 * @param array $args settings field args
@@ -918,14 +652,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			     checked( $field['value'], '1', false ) .
 			     implode( ' ', $field['custom_attributes'] ) . ' /> ';
 
-
-//			$html = '<fieldset>';
-//			$html .= sprintf( '<label for="%1$s[%2$s]">', $field['tab'], $field['id'] );
-//			$html .= sprintf( '<input type="checkbox" class="checkbox" id="%1$s[%2$s]" name="%4$s" value="1" %3$s />', $field['tab'], $field['id'], checked( $field['value'], '1', false ), $field['name'] );
-//			$html .= sprintf( '%1$s</label>', $field['desc'] );
-//			$html .= '</fieldset>';
-
-//			echo $html;
 			$this->print_field_description( $field );
 
 		}
@@ -936,17 +662,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 * @param array $args settings field args
 		 */
 		function callback_multicheck( $field ) {
-//			$value = $field['value'];
-//			if ( empty( $value ) ) {
-//				$value = $field['default'];
-//			}
-
-//			$value = $field['value'];
-////
-////			if ( empty( $value ) ) {
-////				$value = is_array( $field['default'] ) ? $field['default'] : array();
-////			}
-
 			echo '<fieldset class="form-field ' . esc_attr( $field['id'] ) . '_field ' . esc_attr( $field['wrapper_class'] ) . '"><legend>' . wp_kses_post( $field['label'] ) . '</legend>';
 
 			$this->print_field_description_before( $field );
@@ -969,17 +684,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			echo '</ul>';
 
 			echo '</fieldset>';
-//
-//			echo '<fieldset class="form-field ' . esc_attr( $field['id'] ) . '_field ' . esc_attr( $field['wrapper_class'] ) . '"><legend>' . wp_kses_post( $field['label'] ) . '</legend>';
-//			foreach ( $field['options'] as $key => $label ) {
-//				$checked = isset( $value[ $key ] ) ? $value[ $key ] : '0';
-//				printf( '<label for="%1$s[%2$s][%3$s]">', $field['tab'], $field['id'], $key );
-//				printf( '<input type="checkbox" class="checkbox" id="%1$s[%2$s][%3$s]" name="%5$s[%3$s]" value="%3$s" %4$s />', $field['tab'], $field['id'], $key, checked( $checked, $key, false ), $field['name'] );
-//				printf( '%1$s</label><br>', $label );
-//			}
-//
-//			echo '</fieldset>';
-
 			$this->print_field_description( $field );
 		}
 
@@ -1088,7 +792,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		/**
-		 *
+		 * Helper function
 		 */
 		public function print_custom_attr( $attr ) {
 
@@ -1120,8 +824,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			$label = isset( $field['options']['btn'] )
 				? $field['options']['btn']
 				: __( 'Select' );
-
-//			$field['class'] .= 'wpsa-url';
 
 			$this->print_field_label( $field );
 
@@ -1175,7 +877,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			$max_width = $max_width . "px";
 
 			$field['class'] .= ' upload form-field';
-			$this->print_field_label($field);
+			$this->print_field_label( $field );
 
 			// Print HTML field
 			echo '
@@ -1280,34 +982,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		}
 
-		/**
-		 * Show navigations as tab
-		 *
-		 * Shows all the settings tab labels as tab
-		 */
-		function show_navigation() {
-
-			$settings_page = $this->get_default_settings_url();
-
-			$count = count( $this->fields_tabs );
-
-			// don't show the navigation if only one tab exists
-			if ( $count === 1 ) {
-				return;
-			}
-
-
-			$html = '<h2 class="nav-tab-wrapper">';
-
-			foreach ( $this->fields_tabs as $tab ) {
-				$active_class = ( $tab['id'] == $this->active_tab ) ? 'nav-tab-active' : '';
-				$html         .= sprintf( '<a href="%3$s&tab=%1$s" class="nav-tab %4$s" id="%1$s-tab">%2$s</a>', $tab['id'], $tab['title'], $settings_page, $active_class );
-			}
-
-			$html .= '</h2>';
-
-			echo $html;
-		}
 
 		public function var_dump_pretty( $var ) {
 			echo "<pre>";
