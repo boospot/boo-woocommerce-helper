@@ -442,7 +442,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				'sanitize_callback' => '',
 				'value'             => '',
 				'style'             => '',
-				'class'             => 'short',
+				'class'             => '',
 				'size'              => '',
 				// Auto Calculated
 				'name'              => $this->prefix . $field['id'],
@@ -506,6 +506,21 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 							default:
 								break;
 						}
+
+						switch ( $field['type'] ) {
+							case 'text':
+							case 'url':
+							case 'number':
+							case 'textarea':
+							case 'select':
+							case 'pages':
+							case 'posts':
+								$field['class'] .= ' short';
+								break;
+							default:
+								break;
+						}
+
 						// Custom attribute handling
 						$custom_attributes = array();
 
@@ -887,8 +902,8 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			$this->print_field_label( $field );
 			$this->print_field_description_before( $field );
 
-			$field['class'] = '';
-			$field['cbvalue']       = isset( $field['cbvalue'] ) ? $field['cbvalue'] : 'yes';
+			$field['class']   = '';
+			$field['cbvalue'] = isset( $field['cbvalue'] ) ? $field['cbvalue'] : 'yes';
 
 			echo '<input 
 		    type="' . esc_attr( $field['type'] ) . '" 
@@ -918,23 +933,52 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		function callback_multicheck( $args ) {
-			$value = $args['value'];
-			if ( empty( $value ) ) {
-				$value = $args['default'];
-			}
+		function callback_multicheck( $field ) {
+//			$value = $field['value'];
+//			if ( empty( $value ) ) {
+//				$value = $field['default'];
+//			}
 
-			$html = '<fieldset>';
-			foreach ( $args['options'] as $key => $label ) {
-				$checked = isset( $value[ $key ] ) ? $value[ $key ] : '0';
-				$html    .= sprintf( '<label for="%1$s[%2$s][%3$s]">', $args['tab'], $args['id'], $key );
-				$html    .= sprintf( '<input type="checkbox" class="checkbox" id="%1$s[%2$s][%3$s]" name="%5$s[%3$s]" value="%3$s" %4$s />', $args['tab'], $args['id'], $key, checked( $checked, $key, false ), $args['name'] );
-				$html    .= sprintf( '%1$s</label><br>', $label );
-			}
+//			$value = $field['value'];
+////
+////			if ( empty( $value ) ) {
+////				$value = is_array( $field['default'] ) ? $field['default'] : array();
+////			}
 
-			$html .= '</fieldset>';
-			echo $html;
-			unset( $value, $html );
+			echo '<fieldset class="form-field ' . esc_attr( $field['id'] ) . '_field ' . esc_attr( $field['wrapper_class'] ) . '"><legend>' . wp_kses_post( $field['label'] ) . '</legend>';
+
+			$this->print_field_description_before( $field );
+
+			echo '<ul class="wc-radios">';
+			foreach ( $field['options'] as $key => $value ) {
+				$checked = isset( $field['value'][ $key ] ) ? $field['value'][ $key ] : '0';
+//				$this->var_dump_pretty( $field['value']);
+
+				echo '<li><label><input
+				name="' . esc_attr( $field['name'] . '[' . $key . ']' ) . '"
+				value="' . esc_attr( $key ) . '"
+				type="checkbox"
+				class="' . esc_attr( $field['class'] ) . '"
+				style="' . esc_attr( $field['style'] ) . '"
+				' . checked( $checked, esc_attr( $key ), false ) . '
+				/> ' . esc_html( $value ) . '</label>
+		</li>';
+			}
+			echo '</ul>';
+
+			echo '</fieldset>';
+//
+//			echo '<fieldset class="form-field ' . esc_attr( $field['id'] ) . '_field ' . esc_attr( $field['wrapper_class'] ) . '"><legend>' . wp_kses_post( $field['label'] ) . '</legend>';
+//			foreach ( $field['options'] as $key => $label ) {
+//				$checked = isset( $value[ $key ] ) ? $value[ $key ] : '0';
+//				printf( '<label for="%1$s[%2$s][%3$s]">', $field['tab'], $field['id'], $key );
+//				printf( '<input type="checkbox" class="checkbox" id="%1$s[%2$s][%3$s]" name="%5$s[%3$s]" value="%3$s" %4$s />', $field['tab'], $field['id'], $key, checked( $checked, $key, false ), $field['name'] );
+//				printf( '%1$s</label><br>', $label );
+//			}
+//
+//			echo '</fieldset>';
+
+			$this->print_field_description( $field );
 		}
 
 		/**
@@ -957,7 +1001,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				echo '<li><label><input
 				name="' . esc_attr( $field['name'] ) . '"
 				value="' . esc_attr( $key ) . '"
-				type="radio"
+				type="' . esc_attr( $field['type'] ) . '"
 				class="' . esc_attr( $field['class'] ) . '"
 				style="' . esc_attr( $field['style'] ) . '"
 				' . checked( esc_attr( $field['value'] ), esc_attr( $key ), false ) . '
@@ -1168,28 +1212,32 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		function callback_pages( $args ) {
-			$size          = $args['size'];
-			$css_classes   = $args['class'];
+		function callback_pages( $field ) {
+
+			$this->print_field_label( $field );
+			$this->print_field_description_before( $field );
+
 			$dropdown_args = array(
-				'selected'         => $args['value'],
-				'name'             => $args['name'],
-				'id'               => $args['tab'] . '[' . $args['id'] . ']',
+				'selected'         => $field['value'],
+				'name'             => $field['name'],
+				'id'               => $field['name'],
 				'echo'             => 1,
 				'show_option_none' => '-- ' . __( 'Select' ) . ' --',
-				'class'            => "{$size}-text $css_classes", // string
+				'class'            => $field['class'], // string
 			);
+
 			wp_dropdown_pages( $dropdown_args );
 
+			$this->print_field_description( $field );
 		}
 
-		function callback_posts( $args ) {
+		function callback_posts( $field ) {
 			$default_args = array(
 				'post_type'   => 'post',
 				'numberposts' => - 1
 			);
 
-			$posts_args = wp_parse_args( $args['options'], $default_args );
+			$posts_args = wp_parse_args( $field['options'], $default_args );
 
 			$posts = get_posts( $posts_args );
 
@@ -1207,9 +1255,9 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			unset( $posts, $posts_args, $default_args );
 
 			//$args['options'] is required by callback_select()
-			$args['options'] = $options;
+			$field['options'] = $options;
 
-			$this->callback_select( $args );
+			$this->callback_select( $field );
 
 		}
 
