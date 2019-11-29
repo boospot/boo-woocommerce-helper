@@ -92,14 +92,14 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			foreach ( $this->get_tabs_fields() as $tab_id => $fields ) {
 
 				foreach ( $fields as $field ) {
-					$dirty_value = isset( $_POST[ $field['id'] ] ) ? $_POST[ $field['id'] ] : '';
+					$dirty_value = isset( $_POST[ $field['name'] ] ) ? $_POST[ $field['name'] ] : '';
 					$clean_value = call_user_func(
 						( is_callable( $field['sanitize_callback'] ) )
 							? $field['sanitize_callback']
 							: $this->get_sanitize_callback_method( $field['type'] ),
 						$dirty_value
 					);
-					$product->update_meta_data( $field['id'], $clean_value );
+					$product->update_meta_data( $field['name'], $clean_value );
 				}
 
 			}
@@ -109,26 +109,30 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		/**
+		 *
+		 */
+		public function print_field_label( $field ) {
+
+			// Field start
+			printf( '<p class="form-field %1$s %2$s"><label for="%1$s">%3$s</label>',
+				sanitize_html_class( $field['id'] ) . '_field ',
+				sanitize_html_class( $field['wrapper_class'] ),
+				wp_kses_post( $field['label'] )
+			);
+
+		}
+
+		/**
 		 * Display tab contents
 		 */
 		public function display_tab_fields() {
-			global $post;
-
 
 			foreach ( $this->get_tabs_fields() as $tab_id => $fields ) {
 				$this->tab_start( $tab_id );
 
 				foreach ( $fields as $field ) {
 
-					if ( $post->ID ) {
-						$field['value'] = get_post_meta( $post->ID, $field['id'], true );
-					}
 
-					printf( '<p class="form-field %1$s %2$s"><label for="%1$s">%3$s</label>',
-						sanitize_html_class( $field['id'] ) . '_field ',
-						sanitize_html_class( $field['wrapper_class'] ),
-						wp_kses_post( $field['label'] )
-					);
 					call_user_func(
 						( is_callable( $field['callback'] ) )
 							? $field['callback']
@@ -136,11 +140,16 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 						$field
 					);
 
+					$this->print_field_description( $field );
+
 					printf( '</p>' );
 				}
 
 				$this->tab_end();
 			}
+
+			// Call General Scripts
+			$this->script_general();
 
 		}
 
@@ -188,6 +197,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		public function setup_hooks() {
 
 			add_action( 'admin_enqueue_scripts', array( $this, 'admin_enqueue_scripts' ) );
+			add_action( 'admin_head', array( $this, 'admin_enqueue_styles' ) );
 
 		}
 
@@ -320,7 +330,26 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			}
 			wp_enqueue_script( 'jquery' );
 
+
 		}
+
+		/**
+		 * Enqueue scripts and styles
+		 */
+		function admin_enqueue_styles() {
+
+			if ( ! $this->is_edit_product() ) {
+				return null;
+			}
+
+			$css = '.woocommerce_options_panel input[type=url].short{width: 50%;}
+			.woocommerce_options_panel input[type=url]{float: left;}
+			.woocommerce_options_panel input[type=checkbox]{float: left;}
+			';
+
+			echo "<style>{$css}</style>";
+		}
+
 
 		/**
 		 * Set settings tabs
@@ -395,29 +424,30 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			);
 		}
 
-		public function get_default_field_args( $field, $tab = 'default' ) {
-
+		public function get_default_field_args( $field ) {
 			return array(
 				'id'                => $field['id'],
 				'label'             => '',
+				'description'       => '',
 				'desc'              => '',
+				'desc_tip'          => true,
 				'type'              => 'text',
 				'wrapper_class'     => '',
 				'placeholder'       => '',
 				'default'           => '',
+				'std'               => '',
+				'custom_attributes' => array(),
 				'options'           => array(),
 				'callback'          => '',
 				'sanitize_callback' => '',
 				'value'             => '',
-				'show_in_rest'      => true,
-				'class'             => $field['id'],
-				'std'               => '',
-				'size'              => 'regular',
+				'style'             => '',
+				'class'             => 'short',
+				'size'              => '',
 				// Auto Calculated
 				'name'              => $this->prefix . $field['id'],
 				'label_for'         => $this->prefix . $field['id'],
-				'tab'               => $tab,
-
+				'data_type'         => ''
 			);
 		}
 
@@ -438,19 +468,64 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		public function normalize_fields() {
 
+			$admin_post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
+
 			foreach ( $this->tabs_fields as $tab_id => $fields ) {
 				if ( is_array( $fields ) && ! empty( $fields ) ) {
 					foreach ( $fields as $i => $field ) {
-						$this->tabs_fields[ $tab_id ][ $i ] =
-							wp_parse_args(
-								$field,
-								$this->get_default_field_args( $field, $tab_id )
-							);
+
+						$field = wp_parse_args(
+							$field,
+							$this->get_default_field_args( $field )
+						);
+
+						$field['value'] =
+							( empty( $field['value'] ) && $admin_post_id )
+								? get_post_meta( $admin_post_id, $field['name'], true )
+								: '';
+
+						$data_type = empty( $field['data_type'] ) ? '' : $field['data_type'];
+						switch ( $data_type ) {
+							case 'price':
+								$field['class'] .= ' wc_input_price';
+								$field['value'] = wc_format_localized_price( $field['value'] );
+								break;
+							case 'decimal':
+								$field['class'] .= ' wc_input_decimal';
+								$field['value'] = wc_format_localized_decimal( $field['value'] );
+								break;
+							case 'stock':
+								$field['class'] .= ' wc_input_stock';
+								$field['value'] = wc_stock_amount( $field['value'] );
+								break;
+							case 'url':
+								$field['class'] .= ' wc_input_url';
+								$field['value'] = esc_url( $field['value'] );
+								break;
+
+							default:
+								break;
+						}
+						// Custom attribute handling
+						$custom_attributes = array();
+
+						if ( ! empty( $field['custom_attributes'] ) && is_array( $field['custom_attributes'] ) ) {
+							foreach ( $field['custom_attributes'] as $attribute => $value ) {
+								$custom_attributes[] = esc_attr( $attribute ) . '="' . esc_attr( $value ) . '"';
+							}
+							$field['custom_attributes'] = $custom_attributes;
+						}
+
+						if ( empty( $field['description'] ) && ! empty( $field['desc'] ) ) {
+							$field['description'] = $field['desc'];
+						}
+
+						$this->tabs_fields[ $tab_id ][ $i ] = $field;
+
 					}
 				}
 
 			}
-
 
 		}
 
@@ -642,7 +717,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		function sanitize_checkbox( $value ) {
-			return ( $value === '1' ) ? 1 : 0;
+			return ( 'yes' === $value ) ? 1 : 0;
 		}
 
 		function sanitize_select( $value ) {
@@ -723,30 +798,24 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		function callback_text( $args ) {
+		function callback_text( $field ) {
 
-			$html = sprintf(
-				'<input 
-                        type="%1$s" 
-                        class="%2$s-text %8$s" 
-                        id="%3$s[%4$s]" 
-                        name="%7$s" 
-                        value="%5$s"
-                        %6$s
-                        />',
-				$args['type'],
-				$args['size'],
-				$args['tab'],
-				$args['id'],
-				$args['value'],
-				$this->get_markup_placeholder( $args['placeholder'] ),
-				$args['name'],
-				$args['class']
-			);
-			$html .= $this->get_field_description( $args );
+			$this->print_field_label( $field );
 
-			echo $html;
-			unset( $html );
+			$this->print_field_description_before( $field );
+
+			echo '<input 
+		    type="' . esc_attr( $field['type'] ) . '" 
+		    class="' . esc_attr( $field['class'] ) . '" 
+		    style="' . esc_attr( $field['style'] ) . '" 
+		    name="' . esc_attr( $field['name'] ) . '" 
+		    id="' . esc_attr( $field['name'] ) . '" 
+		    value="' . esc_attr( $field['value'] ) . '" 
+		    placeholder="' . esc_attr( $field['placeholder'] ) . '" '
+			     . implode( ' ', $field['custom_attributes'] ) . ' /> ';
+
+			$this->print_field_description( $field );
+
 		}
 
 
@@ -772,8 +841,21 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		public function get_field_description( $args ) {
-			return sprintf( '<p class="description">%s</p>', $args['desc'] );
+		public function print_field_description_before( $field ) {
+			if ( ! empty( $field['description'] ) && false !== $field['desc_tip'] ) {
+				echo wc_help_tip( $field['description'] );
+			}
+		}
+
+		/**
+		 * Get field description for display
+		 *
+		 * @param array $args settings field args
+		 */
+		public function print_field_description( $field ) {
+			if ( ! empty( $field['description'] ) && false === $field['desc_tip'] ) {
+				echo '<span class="description">' . wp_kses_post( $field['description'] ) . '</span>';
+			}
 		}
 
 
@@ -782,8 +864,8 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		function callback_url( $args ) {
-			$this->callback_text( $args );
+		function callback_url( $field ) {
+			$this->callback_text( $field );
 		}
 
 		/**
@@ -791,38 +873,8 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		function callback_number( $args ) {
-			$min  = ( isset( $args['options']['min'] ) && ! empty( $args['options']['min'] ) ) ? ' min="' . $args['options']['min'] . '"' : '';
-			$max  = ( isset( $args['options']['max'] ) && ! empty( $args['options']['max'] ) ) ? ' max="' . $args['options']['max'] . '"' : '';
-			$step = ( isset( $args['options']['step'] ) && ! empty( $args['options']['step'] ) ) ? ' step="' . $args['options']['step'] . '"' : '';
-
-			$html = sprintf(
-				'<input
-                        type="%1$s"
-                        class="%2$s-text"
-                        id="%3$s[%4$s]"
-                        name="%10$s"
-                        value="%5$s"
-                        %6$s
-                        %7$s
-                        %8$s
-                        %9$s
-                        />',
-				$args['type'],
-				$args['size'],
-				$args['tab'],
-				$args['id'],
-				$args['value'],
-				$this->get_markup_placeholder( $args['placeholder'] ),
-				$min,
-				$max,
-				$step,
-				$args['name']
-			);
-			$html .= $this->get_field_description( $args );
-			echo $html;
-
-			unset( $html, $min, $max, $step );
+		function callback_number( $field ) {
+			$this->callback_text( $field );
 		}
 
 		/**
@@ -830,16 +882,35 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		function callback_checkbox( $args ) {
+		function callback_checkbox( $field ) {
+
+			$this->print_field_label( $field );
+			$this->print_field_description_before( $field );
+
+			$field['class'] = '';
+			$field['cbvalue']       = isset( $field['cbvalue'] ) ? $field['cbvalue'] : 'yes';
+
+			echo '<input 
+		    type="' . esc_attr( $field['type'] ) . '" 
+		    class="' . esc_attr( $field['class'] ) . '" 
+		    style="' . esc_attr( $field['style'] ) . '" 
+		    name="' . esc_attr( $field['name'] ) . '" 
+		    id="' . esc_attr( $field['name'] ) . '" 
+		    value="' . esc_attr( $field['cbvalue'] ) . '" 
+		    placeholder="' . esc_attr( $field['placeholder'] ) . '" ' .
+			     checked( $field['value'], '1', false ) .
+			     implode( ' ', $field['custom_attributes'] ) . ' /> ';
 
 
-			$html = '<fieldset>';
-			$html .= sprintf( '<label for="%1$s[%2$s]">', $args['tab'], $args['id'] );
-			$html .= sprintf( '<input type="checkbox" class="checkbox" id="%1$s[%2$s]" name="%4$s" value="1" %3$s />', $args['tab'], $args['id'], checked( $args['value'], '1', false ), $args['name'] );
-			$html .= sprintf( '%1$s</label>', $args['desc'] );
-			$html .= '</fieldset>';
+//			$html = '<fieldset>';
+//			$html .= sprintf( '<label for="%1$s[%2$s]">', $field['tab'], $field['id'] );
+//			$html .= sprintf( '<input type="checkbox" class="checkbox" id="%1$s[%2$s]" name="%4$s" value="1" %3$s />', $field['tab'], $field['id'], checked( $field['value'], '1', false ), $field['name'] );
+//			$html .= sprintf( '%1$s</label>', $field['desc'] );
+//			$html .= '</fieldset>';
 
-			echo $html;
+//			echo $html;
+			$this->print_field_description( $field );
+
 		}
 
 		/**
@@ -861,7 +932,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				$html    .= sprintf( '%1$s</label><br>', $label );
 			}
 
-			$html .= $this->get_field_description( $args );
 			$html .= '</fieldset>';
 			echo $html;
 			unset( $value, $html );
@@ -872,28 +942,32 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		function callback_radio( $args ) {
+		function callback_radio( $field ) {
 
-			$value = $args['value'];
+			$value = $field['value'];
 
 			if ( empty( $value ) ) {
-				$value = is_array( $args['default'] ) ? $args['default'] : array();
+				$value = is_array( $field['default'] ) ? $field['default'] : array();
 			}
 
-			$html = '<fieldset>';
+			echo '<fieldset class="form-field ' . esc_attr( $field['id'] ) . '_field ' . esc_attr( $field['wrapper_class'] ) . '"><legend>' . wp_kses_post( $field['label'] ) . '</legend>';
+			echo '<ul class="wc-radios">';
+			foreach ( $field['options'] as $key => $value ) {
 
-			foreach ( $args['options'] as $key => $label ) {
-
-				$html .= sprintf( '<label for="%1$s[%2$s][%3$s]">', $args['tab'], $args['id'], $key );
-				$html .= sprintf( '<input type="radio" class="radio" id="%1$s[%2$s][%3$s]" name="%5$s" value="%3$s" %4$s />', $args['tab'], $args['id'], $key, checked( $args['value'], $key, false ), $args['name'] );
-				$html .= sprintf( '%1$s</label><br>', $label );
+				echo '<li><label><input
+				name="' . esc_attr( $field['name'] ) . '"
+				value="' . esc_attr( $key ) . '"
+				type="radio"
+				class="' . esc_attr( $field['class'] ) . '"
+				style="' . esc_attr( $field['style'] ) . '"
+				' . checked( esc_attr( $field['value'] ), esc_attr( $key ), false ) . '
+				/> ' . esc_html( $value ) . '</label>
+		</li>';
 			}
+			echo '</ul>';
 
-			$html .= $this->get_field_description( $args );
-			$html .= '</fieldset>';
+			echo '</fieldset>';
 
-			echo $html;
-			unset( $value, $html );
 		}
 
 		/**
@@ -901,24 +975,32 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		function callback_select( $args ) {
+		function callback_select( $field ) {
 
-			$html = sprintf( '<select class="%1$s-text %5$s" name="%4$s" id="%2$s[%3$s]">', $args['size'], $args['tab'], $args['id'], $args['name'], $args['class'] );
+			$this->print_field_label( $field );
 
-			foreach ( $args['options'] as $key => $label ) {
-				$html .=
-					sprintf( '<option value="%1s"%2s>%3s</option>',
-						$key,
-						selected( $args['value'], $key, false ),
-						$label
-					);
+			$this->print_field_description_before( $field );
+
+			echo '<select 
+		    type="' . esc_attr( $field['type'] ) . '" 
+		    class="' . esc_attr( $field['class'] ) . '" 
+		    style="' . esc_attr( $field['style'] ) . '" 
+		    name="' . esc_attr( $field['name'] ) . '" 
+		    id="' . esc_attr( $field['name'] ) . '" 
+		    placeholder="' . esc_attr( $field['placeholder'] ) . '" '
+			     . implode( ' ', $field['custom_attributes'] ) . ' > ';
+
+			foreach ( $field['options'] as $key => $label ) {
+				printf( '<option value="%1s"%2s>%3s</option>',
+					esc_attr( $key ),
+					selected( $field['value'], $key, false ),
+					esc_html( $label )
+				);
 			}
 
-			$html .= sprintf( '</select>' );
-			$html .= $this->get_field_description( $args );
+			echo '</select>';
+			$this->print_field_description( $field );
 
-			echo $html;
-			unset( $html );
 		}
 
 		/**
@@ -926,21 +1008,48 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		function callback_textarea( $args ) {
+		function callback_textarea( $field ) {
 
-			$html = sprintf(
-				'<textarea 
-                        rows="5" 
-                        cols="55" 
-                        class="%1$s-text" 
-                        id="%2$s" 
-                        name="%5$s"
-                        %3$s
-                        >%4$s</textarea>',
-				$args['size'], $args['id'], $this->get_markup_placeholder( $args['placeholder'] ), $args['value'], $args['name'] );
-			$html .= $this->get_field_description( $args );
+			$this->print_field_label( $field );
+			$this->print_field_description_before( $field );
 
-			echo $html;
+			echo '<textarea 
+			class="' . esc_attr( $field['class'] ) . '" 
+			style="' . esc_attr( $field['style'] ) . '"  
+			name="' . esc_attr( $field['name'] ) . '" 
+			id="' . esc_attr( $field['name'] ) . '" 
+			placeholder="' . esc_attr( $field['placeholder'] ) . '" ' .
+			     implode( ' ', $field['custom_attributes'] )
+			     . '>'
+			     . esc_textarea( $field['value'] ) .
+			     '</textarea> ';
+
+			$this->print_field_description( $field );
+
+		}
+
+		/**
+		 *
+		 */
+		public function array_map_assoc( $callback, $array ) {
+			$r = array();
+			foreach ( $array as $key => $value ) {
+				$r[ $key ] = $callback( $key, $value );
+			}
+
+			return $r;
+
+		}
+
+		/**
+		 *
+		 */
+		public function print_custom_attr( $attr ) {
+
+			echo implode( ',', $this->array_map_assoc( function ( $k, $v ) {
+				return "$k ($v)";
+			}, $attr ) );
+
 		}
 
 		/**
@@ -951,7 +1060,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 * @return string
 		 */
 		function callback_html( $args ) {
-			echo $this->get_field_description( $args );
+			echo $this->print_field_description( $args );
 		}
 
 
@@ -968,7 +1077,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			$html = sprintf( '<input type="url" class="%1$s-text wpsa-url" id="%2$s[%3$s]" name="%5$s" value="%4$s"/>', $args['size'], $args['tab'], $args['id'], $args['value'], $args['name'] );
 			$html .= '<input type="button" class="button boospot-browse-button" value="' . $label . '" />';
-			$html .= $this->get_field_description( $args );
+			$html .= $this->print_field_description( $args );
 
 			echo $html;
 		}
@@ -1017,7 +1126,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
                 </div>
             ';
 
-			$this->get_field_description( $args );
+			$this->print_field_description( $args );
 
 			// free memory
 			unset( $default_image, $max_width, $width, $height, $text, $image_size, $image_style, $value );
@@ -1032,7 +1141,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		function callback_password( $args ) {
 
 			$html = sprintf( '<input type="password" class="%1$s-text" id="%2$s[%3$s]" name="%5$s" value="%4$s"/>', $args['size'], $args['tab'], $args['id'], $args['value'], $args['name'] );
-			$html .= $this->get_field_description( $args );
+			$html .= $this->print_field_description( $args );
 
 			echo $html;
 		}
@@ -1042,11 +1151,15 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		function callback_color( $args ) {
-			$html = sprintf( '<input type="text" class="%1$s-text wp-color-picker-field" data-alpha="true" id="%2$s[%3$s]" name="%6$s" value="%4$s" data-default-color="%5$s" />', $args['size'], $args['tab'], $args['id'], $args['value'], $args['default'], $args['name'] );
-			$html .= $this->get_field_description( $args );
+		function callback_color( $field ) {
+			$field['class']             = $field['class'] . ' wp-color-picker-field';
+			$field['custom_attributes'] = array_merge( $field['custom_attributes'], array(
+				'data-alpha'         => "true",
+				'data-default-color' => $field['default']
+			) );
 
-			echo $html;
+			$this->callback_text( $field );
+
 		}
 
 
