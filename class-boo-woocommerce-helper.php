@@ -515,6 +515,8 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 							case 'select':
 							case 'pages':
 							case 'posts':
+							case 'file':
+							case 'media':
 								$field['class'] .= ' short';
 								break;
 							default:
@@ -1104,7 +1106,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 * @return string
 		 */
 		function callback_html( $args ) {
-			echo $this->print_field_description( $args );
+			$this->print_field_description( $args );
 		}
 
 
@@ -1113,43 +1115,56 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		function callback_file( $args ) {
+		function callback_file( $field ) {
 
-			$label = isset( $args['options']['btn'] )
-				? $args['options']['btn']
+			$label = isset( $field['options']['btn'] )
+				? $field['options']['btn']
 				: __( 'Select' );
 
-			$html = sprintf( '<input type="url" class="%1$s-text wpsa-url" id="%2$s[%3$s]" name="%5$s" value="%4$s"/>', $args['size'], $args['tab'], $args['id'], $args['value'], $args['name'] );
-			$html .= '<input type="button" class="button boospot-browse-button" value="' . $label . '" />';
-			$html .= $this->print_field_description( $args );
+//			$field['class'] .= 'wpsa-url';
 
-			echo $html;
+			$this->print_field_label( $field );
+
+			$this->print_field_description_before( $field );
+			echo '<input 
+		    type="url" 
+		    class="' . esc_attr( $field['class'] ) . '" 
+		    style="' . esc_attr( $field['style'] ) . '" 
+		    name="' . esc_attr( $field['name'] ) . '" 
+		    id="' . esc_attr( $field['name'] ) . '" 
+		    value="' . esc_url_raw( $field['value'] ) . '" 
+		    placeholder="' . esc_attr( $field['placeholder'] ) . '" '
+			     . implode( ' ', $field['custom_attributes'] ) . ' /> ';
+
+			echo '<input type="button" class="button boospot-browse-button" value="' . $label . '" />';
+			$this->print_field_description( $field );
+
 		}
 
 
 		/**
 		 * Generate: Uploader field
 		 *
-		 * @param array $args
+		 * @param array $field
 		 *
 		 * @source: https://mycyberuniverse.com/integration-wordpress-media-uploader-plugin-options-page.html
 		 */
-		public function callback_media( $args ) {
+		public function callback_media( $field ) {
 
 			// Set variables
-			$default_image = isset( $args['default'] ) ? esc_url_raw( $args['default'] ) : 'https://www.placehold.it/115x115';
-			$max_width     = isset( $args['options']['max_width'] ) ? absint( $args['options']['max_width'] ) : 150;
-			$width         = isset( $args['options']['width'] ) ? absint( $args['options']['width'] ) : '';
-			$height        = isset( $args['options']['height'] ) ? absint( $args['options']['height'] ) : '';
-			$text          = isset( $args['options']['btn'] ) ? sanitize_text_field( $args['options']['btn'] ) : __( 'Upload' );
+			$default_image = isset( $field['default'] ) ? esc_url_raw( $field['default'] ) : 'https://www.placehold.it/115x115';
+			$max_width     = isset( $field['options']['max_width'] ) ? absint( $field['options']['max_width'] ) : 150;
+			$width         = isset( $field['options']['width'] ) ? absint( $field['options']['width'] ) : '';
+			$height        = isset( $field['options']['height'] ) ? absint( $field['options']['height'] ) : '';
+			$text          = isset( $field['options']['btn'] ) ? sanitize_text_field( $field['options']['btn'] ) : __( 'Upload' );
 
 
 			$image_size = ( ! empty( $width ) && ! empty( $height ) ) ? array( $width, $height ) : 'thumbnail';
 
-			if ( ! empty( $args['value'] ) ) {
-				$image_attributes = wp_get_attachment_image_src( $args['value'], $image_size );
+			if ( ! empty( $field['value'] ) ) {
+				$image_attributes = wp_get_attachment_image_src( $field['value'], $image_size );
 				$src              = $image_attributes[0];
-				$value            = $args['value'];
+				$value            = $field['value'];
 			} else {
 				$src   = $default_image;
 				$value = '';
@@ -1158,19 +1173,25 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			$image_style = ! is_array( $image_size ) ? "style='max-width:100%; height:auto;'" : "style='width:{$width}px; height:{$height}px;'";
 
 			$max_width = $max_width . "px";
+
+			$field['class'] .= ' upload form-field';
+			$this->print_field_label($field);
+
 			// Print HTML field
 			echo '
-                <div class="upload" style="max-width:' . $max_width . ';">
+                <span class="' . esc_attr( $field['class'] ) . '" style="max-width:' . $max_width . ';">
                     <img data-src="' . $default_image . '" src="' . $src . '" ' . $image_style . '/>
-                    <div>
-                        <input type="hidden" name="' . $args['name'] . '" id="' . $args['name'] . '" value="' . $value . '" />
+                    <span>
+                        <input type="hidden" name="' . $field['name'] . '" id="' . $field['name'] . '" value="' . $value . '" />
                         <button type="submit" class="boospot-image-upload button">' . $text . '</button>
                         <button type="submit" class="boospot-image-remove button">&times;</button>
-                    </div>
-                </div>
+                    </span>
+                </span>
             ';
+			$this->print_field_description_before( $field );
+			$this->print_field_description( $field );
 
-			$this->print_field_description( $args );
+			echo "</p>";
 
 			// free memory
 			unset( $default_image, $max_width, $width, $height, $text, $image_size, $image_style, $value );
@@ -1182,12 +1203,10 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @param array $args settings field args
 		 */
-		function callback_password( $args ) {
+		function callback_password( $field ) {
 
-			$html = sprintf( '<input type="password" class="%1$s-text" id="%2$s[%3$s]" name="%5$s" value="%4$s"/>', $args['size'], $args['tab'], $args['id'], $args['value'], $args['name'] );
-			$html .= $this->print_field_description( $args );
+			$this->callback_text( $field );
 
-			echo $html;
 		}
 
 		/**
@@ -1334,7 +1353,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
                         file_frame.on('select', function () {
                             attachment = file_frame.state().get('selection').first().toJSON();
-                            self.prev('.wpsa-url').val(attachment.url).change();
+                            self.prev('input').val(attachment.url).change();
                         });
 
                         // Finally, open the modal
