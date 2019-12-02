@@ -90,11 +90,27 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		public function print_field_label( $field ) {
 
 			// Field start
-			printf( '<p class="form-field %1$s %2$s"><label for="%1$s">%3$s</label>',
+			printf( '<p class="%2$s"><label for="%1$s">%3$s</label>',
 				sanitize_html_class( $field['id'] ) . '_field ',
-				sanitize_html_class( $field['wrapper_class'] ),
+				$this->get_wrapper_css_classes( $field ),
 				wp_kses_post( $field['label'] )
 			);
+
+		}
+
+		/**
+		 *
+		 */
+		public function get_wrapper_css_classes( $field ) {
+
+
+			$css_classes_array   = is_array( $field['wrapper_class'] ) ? $field['wrapper_class'] : array();
+			$css_classes_array[] = 'form-field';
+
+			$css_classes_array = array_map( 'sanitize_html_class', $css_classes_array );
+
+			return implode( ' ', $css_classes_array );
+
 
 		}
 
@@ -106,7 +122,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			foreach ( $this->get_fields() as $tab_id => $fields ) {
 				$this->tab_start( $tab_id );
 
-				do_action( 'woocommerce_product_options_' . $tab_id );
+				do_action( 'woocommerce_product_' . $tab_id );
 
 				$this->tab_end();
 			}
@@ -124,9 +140,9 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			foreach ( array_keys( $this->get_fields() ) as $tab_id ) {
 
 				$this->active_tabs[] = $tab_id;
-				add_action( 'woocommerce_product_options_' . $tab_id, function () {
+				add_action( 'woocommerce_product_' . $tab_id, function () {
 					foreach ( $this->active_tabs as $index => $tab_id ) {
-						if ( doing_action( 'woocommerce_product_options_' . $tab_id ) ) {
+						if ( doing_action( 'woocommerce_product_' . $tab_id ) ) {
 							$this->display_fields_for_tab( $tab_id );
 							unset( $this->active_tabs[ $tab_id ] );
 						}
@@ -406,7 +422,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				'sanitize_callback' => '',
 				'value'             => '',
 				'style'             => '',
-				'class'             => '',
+				'class'             => array(),
 				'size'              => '',
 				// Auto Calculated
 				'name'              => $this->prefix . $field['id'],
@@ -443,6 +459,14 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 							$this->get_default_field_args( $field )
 						);
 
+						if ( ! is_array( $field['class'] ) ) {
+							$field['class'] = array( $field['class'] );
+						}
+
+						if ( ! is_array( $field['wrapper_class'] ) ) {
+							$field['wrapper_class'] = array( $field['wrapper_class'] );
+						}
+
 						$field['value'] =
 							( empty( $field['value'] ) && $admin_post_id )
 								? get_post_meta( $admin_post_id, $field['name'], true )
@@ -451,20 +475,20 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 						$data_type = empty( $field['data_type'] ) ? '' : $field['data_type'];
 						switch ( $data_type ) {
 							case 'price':
-								$field['class'] .= ' wc_input_price';
-								$field['value'] = wc_format_localized_price( $field['value'] );
+								$field['class'][] = 'wc_input_price';
+								$field['value']   = wc_format_localized_price( $field['value'] );
 								break;
 							case 'decimal':
-								$field['class'] .= ' wc_input_decimal';
-								$field['value'] = wc_format_localized_decimal( $field['value'] );
+								$field['class'][] = 'wc_input_decimal';
+								$field['value']   = wc_format_localized_decimal( $field['value'] );
 								break;
 							case 'stock':
-								$field['class'] .= ' wc_input_stock';
-								$field['value'] = wc_stock_amount( $field['value'] );
+								$field['class'][] = 'wc_input_stock';
+								$field['value']   = wc_stock_amount( $field['value'] );
 								break;
 							case 'url':
-								$field['class'] .= ' wc_input_url';
-								$field['value'] = esc_url( $field['value'] );
+								$field['class'][] = 'wc_input_url';
+								$field['value']   = esc_url( $field['value'] );
 								break;
 
 							default:
@@ -481,7 +505,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 							case 'posts':
 							case 'file':
 							case 'media':
-								$field['class'] .= ' short';
+								$field['class'][] = 'short';
 								break;
 							default:
 								break;
@@ -605,6 +629,19 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		/**
+		 *
+		 */
+		public function get_field_css_classes( $field ) {
+
+			$css_classes_array = is_array( $field['class'] ) ? $field['class'] : array();
+
+			$css_classes_array = array_map( 'sanitize_html_class', $css_classes_array );
+
+			return implode( ' ', $css_classes_array );
+
+		}
+
+		/**
 		 * Displays a text field for a settings field
 		 *
 		 * @param array $args settings field args
@@ -617,7 +654,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			echo '<input 
 		    type="' . esc_attr( $field['type'] ) . '" 
-		    class="' . esc_attr( $field['class'] ) . '" 
+		    class="' . $this->get_field_css_classes( $field ) . '" 
 		    style="' . esc_attr( $field['style'] ) . '" 
 		    name="' . esc_attr( $field['name'] ) . '" 
 		    id="' . esc_attr( $field['name'] ) . '" 
@@ -686,7 +723,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			echo '<input 
 		    type="' . esc_attr( $field['type'] ) . '" 
-		    class="' . esc_attr( $field['class'] ) . '" 
+		    class="' . $this->get_field_css_classes( $field ) . '" 
 		    style="' . esc_attr( $field['style'] ) . '" 
 		    name="' . esc_attr( $field['name'] ) . '" 
 		    id="' . esc_attr( $field['name'] ) . '" 
@@ -705,7 +742,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 * @param array $args settings field args
 		 */
 		function callback_multicheck( $field ) {
-			echo '<fieldset class="form-field ' . esc_attr( $field['id'] ) . '_field ' . esc_attr( $field['wrapper_class'] ) . '"><legend>' . wp_kses_post( $field['label'] ) . '</legend>';
+			echo '<fieldset class="' . $this->get_wrapper_css_classes( $field ) . '"><legend>' . wp_kses_post( $field['label'] ) . '</legend>';
 
 			$this->print_field_description_before( $field );
 
@@ -718,7 +755,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				name="' . esc_attr( $field['name'] . '[' . $key . ']' ) . '"
 				value="' . esc_attr( $key ) . '"
 				type="checkbox"
-				class="' . esc_attr( $field['class'] ) . '"
+				class="' . $this->get_field_css_classes( $field ) . '"
 				style="' . esc_attr( $field['style'] ) . '"
 				' . checked( $checked, esc_attr( $key ), false ) . '
 				/> ' . esc_html( $value ) . '</label>
@@ -743,7 +780,8 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				$value = is_array( $field['default'] ) ? $field['default'] : array();
 			}
 
-			echo '<fieldset class="form-field ' . esc_attr( $field['id'] ) . '_field ' . esc_attr( $field['wrapper_class'] ) . '"><legend>' . wp_kses_post( $field['label'] ) . '</legend>';
+
+			echo '<fieldset class="' . $this->get_wrapper_css_classes( $field ) . '"><legend>' . wp_kses_post( $field['label'] ) . '</legend>';
 			echo '<ul class="wc-radios">';
 			foreach ( $field['options'] as $key => $value ) {
 
@@ -751,7 +789,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				name="' . esc_attr( $field['name'] ) . '"
 				value="' . esc_attr( $key ) . '"
 				type="' . esc_attr( $field['type'] ) . '"
-				class="' . esc_attr( $field['class'] ) . '"
+				class="' . $this->get_field_css_classes( $field ) . '"
 				style="' . esc_attr( $field['style'] ) . '"
 				' . checked( esc_attr( $field['value'] ), esc_attr( $key ), false ) . '
 				/> ' . esc_html( $value ) . '</label>
@@ -776,7 +814,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			echo '<select 
 		    type="' . esc_attr( $field['type'] ) . '" 
-		    class="' . esc_attr( $field['class'] ) . '" 
+		    class="' . $this->get_field_css_classes( $field ) . '" 
 		    style="' . esc_attr( $field['style'] ) . '" 
 		    name="' . esc_attr( $field['name'] ) . '" 
 		    id="' . esc_attr( $field['name'] ) . '" 
@@ -807,7 +845,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			$this->print_field_description_before( $field );
 
 			echo '<textarea 
-			class="' . esc_attr( $field['class'] ) . '" 
+			class="' . $this->get_field_css_classes( $field ) . '" 
 			style="' . esc_attr( $field['style'] ) . '"  
 			name="' . esc_attr( $field['name'] ) . '" 
 			id="' . esc_attr( $field['name'] ) . '" 
@@ -873,7 +911,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			$this->print_field_description_before( $field );
 			echo '<input 
 		    type="url" 
-		    class="' . esc_attr( $field['class'] ) . '" 
+		    class="' . $this->get_field_css_classes( $field ) . '" 
 		    style="' . esc_attr( $field['style'] ) . '" 
 		    name="' . esc_attr( $field['name'] ) . '" 
 		    id="' . esc_attr( $field['name'] ) . '" 
@@ -919,12 +957,12 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			$max_width = $max_width . "px";
 
-			$field['class'] .= ' upload form-field';
+			$field['class'][] = 'upload form-field';
 			$this->print_field_label( $field );
 
 			// Print HTML field
 			echo '
-                <span class="' . esc_attr( $field['class'] ) . '" style="max-width:' . $max_width . ';">
+                <span class="' . $this->get_field_css_classes( $field ) . '" style="max-width:' . $max_width . ';">
                     <img data-src="' . $default_image . '" src="' . $src . '" ' . $image_style . '/>
                     <span>
                         <input type="hidden" name="' . $field['name'] . '" id="' . $field['name'] . '" value="' . $value . '" />
@@ -960,7 +998,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 * @param array $args settings field args
 		 */
 		function callback_color( $field ) {
-			$field['class']             = $field['class'] . ' wp-color-picker-field';
+			$field['class'][]           = 'wp-color-picker-field';
 			$field['custom_attributes'] = array_merge( $field['custom_attributes'], array(
 				'data-alpha'         => "true",
 				'data-default-color' => $field['default']
@@ -987,7 +1025,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				'id'               => $field['name'],
 				'echo'             => 1,
 				'show_option_none' => '-- ' . __( 'Select' ) . ' --',
-				'class'            => $field['class'], // string
+				'class'            => $this->get_field_css_classes( $field ), // string
 			);
 
 			wp_dropdown_pages( $dropdown_args );
