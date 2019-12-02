@@ -18,7 +18,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		public $field_types = array();
 
-		protected $custom_tabs = array();
 
 		// flag for options processing
 		protected $prefix = '';
@@ -27,11 +26,11 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		protected $tab_keys = array();
 
-		/**
-		 * Fields array
-		 *
-		 * @var array
-		 */
+
+		protected $types = array();
+
+		protected $custom_tabs = array();
+
 		protected $fields = array();
 
 
@@ -50,11 +49,13 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 */
 		public function init() {
 
+			add_filter( 'product_type_options', array( $this, 'register_types' ) );
+
 			add_filter( 'woocommerce_product_data_tabs', array( $this, 'register_tabs' ) );
 
 			add_filter( 'woocommerce_product_data_panels', array( $this, 'display_tab_fields' ) ); // WC 2.6 and up
 
-			add_action( 'woocommerce_process_product_meta', array( $this, 'save_tab_fields' ) );
+			add_action( 'woocommerce_process_product_meta', array( $this, 'save_custom_fields' ) );
 
 			$this->register_fields_display_hooks();
 
@@ -63,7 +64,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		/**
 		 * Save fields
 		 */
-		public function save_tab_fields( $post_id ) {
+		public function save_custom_fields( $post_id ) {
 
 			$product = wc_get_product( $post_id );
 
@@ -81,6 +82,12 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				}
 
 			}
+
+			foreach ( $this->types as $type ) {
+				$type_value = isset( $_POST[ $type['id'] ] ) ? 'yes' : 'no';
+				$product->update_meta_data( $type['id'], $type_value );
+			}
+
 
 			$product->save();
 
@@ -233,6 +240,27 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		/**
 		 * Register Woocommerce tabs
 		 */
+		public function register_types( $types ) {
+
+			foreach ( $this->types as $type ) {
+				$id_for_type           = ( '_' === substr( $type['id'], 0, 1 ) ) ? substr( $type['id'], 1 ) : $type['id'];
+				$types[ $id_for_type ] = array(
+					'id'            => $type['id'],
+					'label'         => $type['label'],
+					'wrapper_class' => $type['wrapper_class'],
+					'description'   => $type['description'],
+					'default'       => $type['default'],
+				);
+			}
+
+			return $types;
+
+		}
+
+
+		/**
+		 * Register Woocommerce tabs
+		 */
 		public function register_tabs( $tabs ) {
 
 			foreach ( $this->get_custom_tabs() as $tab ) {
@@ -273,6 +301,10 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			if ( isset( $config_array['tabs'] ) ) {
 				$this->set_tabs( $config_array['tabs'] );
+			}
+
+			if ( isset( $config_array['types'] ) ) {
+				$this->set_types( $config_array['types'] );
 			}
 
 			// Do we have fields config, if yes, call the method
@@ -364,6 +396,20 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			echo "<style>{$css}</style>";
 		}
 
+		/**
+		 * Set settings tabs
+		 *
+		 * @param array $tabs setting tabs array
+		 */
+		function set_types( array $types ) {
+
+			$this->types = array_merge_recursive( $this->types, $types );
+
+			$this->normalize_types();
+
+			return $this;
+		}
+
 
 		/**
 		 * Set settings tabs
@@ -419,6 +465,17 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		}
 
+		public function get_default_types_args( $type ) {
+			return array(
+				'id'            => $type['id'],
+				'label'         => '',
+				'description'   => '',
+				'wrapper_class' => array( 'show_if_simple', 'show_if_variable', $type['id'] ),
+				'default'       => 'no'
+			);
+		}
+
+
 		public function get_default_tabs_args( $tab ) {
 			return array(
 				'id'       => $tab['id'],
@@ -454,6 +511,21 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				'label_for'         => $this->prefix . $field['id'],
 				'data_type'         => ''
 			);
+		}
+
+		/**
+		 * Process Types to normalise its array
+		 */
+		public function normalize_types() {
+
+			foreach ( $this->types as $index => $type ) {
+
+				$this->types[ $index ] = wp_parse_args(
+					$type,
+					$this->get_default_types_args( $type )
+				);
+			}
+
 		}
 
 		/**
@@ -840,7 +912,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			$this->print_field_description_before( $field );
 
 			if ( isset( $field['enhanced'] ) && $field['enhanced'] ) {
-				$field['class'][]                       = 'wc-enhanced-select';
+				$field['class'][] = 'wc-enhanced-select';
 			}
 
 			echo '<select 
