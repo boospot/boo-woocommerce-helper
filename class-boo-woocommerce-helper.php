@@ -18,26 +18,20 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		public $field_types = array();
 
-		protected $tabs_ids;
-
-		protected $fields_ids;
+		protected $tabs = array();
 
 		// flag for options processing
 		protected $prefix = '';
 
-		/**
-		 * settings tabs array
-		 *
-		 * @var array
-		 */
-		protected $fields_tabs = array();
+		protected $active_tabs;
 
 		/**
-		 * Settings fields array
+		 * Fields array
 		 *
 		 * @var array
 		 */
-		protected $tabs_fields = array();
+		protected $fields = array();
+
 
 		public function __construct( $config_array = null ) {
 
@@ -60,6 +54,8 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			add_action( 'woocommerce_process_product_meta', array( $this, 'save_tab_fields' ) );
 
+			$this->register_fields_display_hooks();
+
 		}
 
 		/**
@@ -69,7 +65,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			$product = wc_get_product( $post_id );
 
-			foreach ( $this->get_tabs_fields() as $tab_id => $fields ) {
+			foreach ( $this->get_fields() as $tab_id => $fields ) {
 
 				foreach ( $fields as $field ) {
 					$dirty_value = isset( $_POST[ $field['name'] ] ) ? $_POST[ $field['name'] ] : '';
@@ -107,12 +103,66 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 */
 		public function display_tab_fields() {
 
-			foreach ( $this->get_tabs_fields() as $tab_id => $fields ) {
+			foreach ( $this->get_fields() as $tab_id => $fields ) {
 				$this->tab_start( $tab_id );
 
+				do_action( 'woocommerce_product_options_' . $tab_id );
+
+				$this->tab_end();
+			}
+
+			// Call General Scripts
+			$this->script_general();
+
+		}
+
+		/**
+		 *
+		 */
+		public function register_fields_display_hooks() {
+
+			foreach ( array_keys( $this->get_fields() ) as $tab_id ) {
+
+				$this->active_tabs[] = $tab_id;
+				add_action( 'woocommerce_product_options_' . $tab_id, function () {
+					foreach ( $this->active_tabs as $index => $tab_id ) {
+						if ( doing_action( 'woocommerce_product_options_' . $tab_id ) ) {
+							$this->display_fields_for_tab( $tab_id );
+							unset( $this->active_tabs[ $tab_id ] );
+						}
+					}
+
+				} );
+			}
+		}
+
+		/**
+		 *
+		 */
+		public function display_fields_for_tab( $tab_id ) {
+
+			$fields = $this->get_fields( $tab_id );
+			foreach ( $fields as $field ) {
+				call_user_func(
+					( is_callable( $field['callback'] ) )
+						? $field['callback']
+						: $this->get_field_markup_callback_method( $field['type'] ),
+					$field
+				);
+				$this->print_field_description( $field );
+				printf( '</p>' );
+			}
+
+		}
+
+
+		/**
+		 *
+		 */
+		public function process_fields() {
+			foreach ( $this->get_fields() as $tab_id => $fields ) {
+
 				foreach ( $fields as $field ) {
-
-
 					call_user_func(
 						( is_callable( $field['callback'] ) )
 							? $field['callback']
@@ -124,12 +174,8 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 					printf( '</p>' );
 				}
-
-				$this->tab_end();
 			}
 
-			// Call General Scripts
-			$this->script_general();
 
 		}
 
@@ -152,7 +198,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 */
 		public function register_tabs( $tabs ) {
 
-			foreach ( $this->get_fields_tabs() as $tab ) {
+			foreach ( $this->get_tabs() as $tab ) {
 				$tabs[ $tab['id'] ] = array(
 					'label'    => $tab['label'],
 					'target'   => $tab['id'] . '_options',
@@ -214,8 +260,8 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 */
 		public function get_field_types() {
 
-			foreach ( $this->tabs_fields as $tabs_fields ) {
-				foreach ( $tabs_fields as $field ) {
+			foreach ( $this->fields as $fields ) {
+				foreach ( $fields as $field ) {
 					$this->field_types[] = isset( $field['type'] ) ? sanitize_key( $field['type'] ) : 'text';
 				}
 			}
@@ -285,12 +331,9 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 */
 		function set_tabs( array $tabs ) {
 
-			$this->fields_tabs = array_merge_recursive( $this->fields_tabs, $tabs );
+			$this->tabs = array_merge_recursive( $this->tabs, $tabs );
 
 			$this->normalize_tabs();
-
-			$this->tabs_count = count( $this->fields_tabs );
-			$this->tabs_ids   = array_values( $this->fields_tabs );
 
 			return $this;
 		}
@@ -301,7 +344,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 * @param array $fields settings fields array
 		 */
 		public function set_fields( $fields ) {
-			$this->tabs_fields = array_merge_recursive( $this->tabs_fields, $fields );
+			$this->fields = array_merge_recursive( $this->fields, $fields );
 			$this->normalize_fields();
 			$this->setup_hooks();
 
@@ -373,13 +416,13 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		/**
-		 * Process tabs to nrmalise its array
+		 * Process tabs to normalise its array
 		 */
 		public function normalize_tabs() {
 
-			foreach ( $this->fields_tabs as $index => $tab ) {
+			foreach ( $this->tabs as $index => $tab ) {
 
-				$this->fields_tabs[ $index ] = wp_parse_args(
+				$this->tabs[ $index ] = wp_parse_args(
 					$tab,
 					$this->get_default_tabs_args( $tab )
 				);
@@ -391,7 +434,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			$admin_post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
 
-			foreach ( $this->tabs_fields as $tab_id => $fields ) {
+			foreach ( $this->fields as $tab_id => $fields ) {
 				if ( is_array( $fields ) && ! empty( $fields ) ) {
 					foreach ( $fields as $i => $field ) {
 
@@ -458,7 +501,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 							$field['description'] = $field['desc'];
 						}
 
-						$this->tabs_fields[ $tab_id ][ $i ] = $field;
+						$this->fields[ $tab_id ][ $i ] = $field;
 
 					}
 				}
@@ -1077,7 +1120,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
                     // The "Remove" button (remove the value from input type='hidden')
                     $('.boospot-image-remove').click(function () {
                         var answer = confirm('Are you sure?');
-                        if (answer == true) {
+                        if (true === answer) {
                             var src = $(this).parent().prev().attr('data-src');
                             $(this).parent().prev().attr('src', src);
                             $(this).prev().prev().val('');
@@ -1090,26 +1133,20 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			<?php
 		}
 
-		public function get_fields_tabs() {
+		public function get_tabs() {
 
-			return ( ! empty( $this->fields_tabs ) ) ? $this->fields_tabs : array();
+			return ( ! empty( $this->tabs ) && is_array( $this->tabs ) ) ? $this->tabs : array();
 
 		}
 
-		public function get_tabs_fields() {
+		public function get_fields( $tab_id = null ) {
 
-			return $this->tabs_fields;
-		}
-
-		public function get_tabs_fields_ids() {
-
-			foreach ( $this->tabs_fields as $tabs_fields ) {
-				foreach ( $tabs_fields as $field ) {
-					$this->fields_ids[] = $field['id'];
-				}
+			if ( empty( $tab_id ) ) {
+				return $this->fields;
+			} else {
+				return isset( $this->fields[ $tab_id ] ) ? $this->fields[ $tab_id ] : array();
 			}
 
-			return $this->fields_ids;
 		}
 
 
