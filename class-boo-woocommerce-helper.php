@@ -1181,6 +1181,42 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		/**
+		 *
+		 */
+		public function get_script_for_tab_conditional_display( $type_id ) {
+
+			$script = "
+			$( 'input#{$type_id}' ).change( function() {
+                var is{$type_id} = $( 'input#{$type_id}:checked' ).size();
+                $( '.show_if{$type_id}' ).hide();
+                $( '.hide_if{$type_id}' ).hide();
+                if ( is{$type_id} ) {
+                    $( '.hide_if{$type_id}' ).hide();
+                }
+                if ( is{$type_id} ) {
+                    $( '.show_if{$type_id}' ).show();
+                }
+            });
+            $( 'input#{$type_id}' ).trigger( 'change' ); ";
+
+			return $script;
+
+		}
+
+		/**
+		 *
+		 */
+		public function get_type_conditional_script() {
+			$script = '';
+			foreach ( $this->types as $type ) {
+				$script .= $this->get_script_for_tab_conditional_display( $type['id'] );
+			}
+
+			return $script;
+
+		}
+
+		/**
 		 * Tabbable JavaScript codes & Initiate Color Picker
 		 *
 		 * This code uses localstorage for displaying active tabs
@@ -1270,9 +1306,19 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
                         return false;
                     });
 
+
                 });
             </script>
 			<?php
+
+			$script = $this->get_type_conditional_script();
+			if ( ! empty( $script ) ) {
+
+				echo "<script>jQuery( document ).ready( function( $ ) {  $script  });</script>";
+
+			}
+
+
 		}
 
 		public function get_custom_tabs() {
