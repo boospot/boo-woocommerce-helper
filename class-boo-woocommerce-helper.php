@@ -18,12 +18,14 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		public $field_types = array();
 
-		protected $tabs = array();
+		protected $custom_tabs = array();
 
 		// flag for options processing
 		protected $prefix = '';
 
 		protected $active_tabs;
+
+		protected $tab_keys = array();
 
 		/**
 		 * Fields array
@@ -99,7 +101,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		/**
-		 *
+		 * return css classes from array
 		 */
 		public function get_wrapper_css_classes( $field ) {
 
@@ -119,10 +121,11 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 */
 		public function display_tab_fields() {
 
-			foreach ( $this->get_fields() as $tab_id => $fields ) {
-				$this->tab_start( $tab_id );
+			foreach ( $this->get_custom_tabs() as $tab ) {
 
-				do_action( 'woocommerce_product_' . $tab_id );
+				$this->tab_start( $tab );
+
+				do_action( 'woocommerce_product_' . $tab['id'] );
 
 				$this->tab_end();
 			}
@@ -196,10 +199,28 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		/**
-		 *
+		 * return css classes from array
 		 */
-		public function tab_start( $tab_id ) {
-			printf( '<div id="%s" class="panel woocommerce_options_panel"><div class="options_group">', $tab_id . '_options' );
+		public function get_tab_wrapper_css_classes( $tab ) {
+
+			$css_classes_array = is_array( $tab['class'] ) ? $tab['class'] : array();
+
+			$css_classes_array = array_map( 'sanitize_html_class', $css_classes_array );
+
+			return implode( ' ', $css_classes_array );
+
+
+		}
+
+		/**
+		 * html for tab start
+		 */
+		public function tab_start( $tab ) {
+
+			printf( '<div id="%s" class="panel woocommerce_options_panel"><div class="%s">',
+				$tab['id'] . '_options',
+				$this->get_tab_wrapper_css_classes( $tab )
+			);
 		}
 
 		/**
@@ -214,7 +235,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 */
 		public function register_tabs( $tabs ) {
 
-			foreach ( $this->get_tabs() as $tab ) {
+			foreach ( $this->get_custom_tabs() as $tab ) {
 				$tabs[ $tab['id'] ] = array(
 					'label'    => $tab['label'],
 					'target'   => $tab['id'] . '_options',
@@ -334,6 +355,10 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			$css = '.woocommerce_options_panel input[type=url].short{width: 50%;}
 			.woocommerce_options_panel input[type=url]{float: left;}
 			.woocommerce_options_panel input[type=checkbox]{float: left;}
+			.woocommerce_options_panel fieldset label {   margin-left: 0px; }
+			.woocommerce_options_panel fieldset label input { margin-right: 5px; } 
+			.woocommerce_options_panel span.short.upload.form-field {   display: flex;   flex-direction: column; }
+			.woocommerce_options_panel span.upload-actions {   margin: 10px;   display: flex;   justify-content: space-between; }
 			';
 
 			echo "<style>{$css}</style>";
@@ -347,7 +372,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 */
 		function set_tabs( array $tabs ) {
 
-			$this->tabs = array_merge_recursive( $this->tabs, $tabs );
+			$this->custom_tabs = array_merge_recursive( $this->custom_tabs, $tabs );
 
 			$this->normalize_tabs();
 
@@ -436,9 +461,9 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 */
 		public function normalize_tabs() {
 
-			foreach ( $this->tabs as $index => $tab ) {
+			foreach ( $this->custom_tabs as $index => $tab ) {
 
-				$this->tabs[ $index ] = wp_parse_args(
+				$this->custom_tabs[ $index ] = wp_parse_args(
 					$tab,
 					$this->get_default_tabs_args( $tab )
 				);
@@ -780,8 +805,10 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				$value = is_array( $field['default'] ) ? $field['default'] : array();
 			}
 
+			$field['class'][] = 'select';
+			$field['class'][] = 'short';
 
-			echo '<fieldset class="' . $this->get_wrapper_css_classes( $field ) . '"><legend>' . wp_kses_post( $field['label'] ) . '</legend>';
+			echo '<p class="form-field"><fieldset class="' . $this->get_wrapper_css_classes( $field ) . '"><legend>' . wp_kses_post( $field['label'] ) . '</legend>';
 			echo '<ul class="wc-radios">';
 			foreach ( $field['options'] as $key => $value ) {
 
@@ -797,7 +824,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			}
 			echo '</ul>';
 
-			echo '</fieldset>';
+			echo '</fieldset></p>';
 
 		}
 
@@ -935,7 +962,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		public function callback_media( $field ) {
 
 			// Set variables
-			$default_image = isset( $field['default'] ) ? esc_url_raw( $field['default'] ) : 'https://www.placehold.it/115x115';
+			$default_image = isset( $field['default'] ) && ! empty( $field['default'] ) ? esc_url_raw( $field['default'] ) : 'https://www.placehold.it/115x115';
 			$max_width     = isset( $field['options']['max_width'] ) ? absint( $field['options']['max_width'] ) : 150;
 			$width         = isset( $field['options']['width'] ) ? absint( $field['options']['width'] ) : '';
 			$height        = isset( $field['options']['height'] ) ? absint( $field['options']['height'] ) : '';
@@ -957,14 +984,15 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			$max_width = $max_width . "px";
 
-			$field['class'][] = 'upload form-field';
+			$field['class'][] = 'upload';
+			$field['class'][] = 'form-field';
 			$this->print_field_label( $field );
 
 			// Print HTML field
 			echo '
                 <span class="' . $this->get_field_css_classes( $field ) . '" style="max-width:' . $max_width . ';">
                     <img data-src="' . $default_image . '" src="' . $src . '" ' . $image_style . '/>
-                    <span>
+                    <span class="upload-actions">
                         <input type="hidden" name="' . $field['name'] . '" id="' . $field['name'] . '" value="' . $value . '" />
                         <button type="submit" class="boospot-image-upload button">' . $text . '</button>
                         <button type="submit" class="boospot-image-remove button">&times;</button>
@@ -1171,9 +1199,26 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			<?php
 		}
 
+		public function get_custom_tabs() {
+
+			return ( ! empty( $this->custom_tabs ) && is_array( $this->custom_tabs ) ) ? $this->custom_tabs : array();
+
+		}
+
 		public function get_tabs() {
 
-			return ( ! empty( $this->tabs ) && is_array( $this->tabs ) ) ? $this->tabs : array();
+			if ( empty( $this->tab_keys ) ) {
+
+				$custom_tab_keys = array_column( $this->get_custom_tabs(), 'id' );
+
+				$field_tab_keys = array_keys( $this->get_fields() );
+
+				$this->tab_keys = array_unique( array_merge( $custom_tab_keys, $field_tab_keys ) );
+
+			}
+
+
+			return $this->tab_keys;
 
 		}
 
