@@ -839,6 +839,10 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			$this->print_field_description_before( $field );
 
+			if ( isset( $field['enhanced'] ) && $field['enhanced'] ) {
+				$field['class'][]                       = 'wc-enhanced-select';
+			}
+
 			echo '<select 
 		    type="' . esc_attr( $field['type'] ) . '" 
 		    class="' . $this->get_field_css_classes( $field ) . '" 
