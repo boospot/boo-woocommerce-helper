@@ -153,7 +153,9 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				add_action( 'woocommerce_product_' . $tab_id, function () {
 					foreach ( $this->active_tabs as $index => $tab_id ) {
 						if ( doing_action( 'woocommerce_product_' . $tab_id ) ) {
+							echo '<div class="options_group">';
 							$this->display_fields_for_tab( $tab_id );
+							echo '</div>';
 							unset( $this->active_tabs[ $tab_id ] );
 						}
 					}
@@ -705,7 +707,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			return esc_url_raw( $value );
 		}
 
-		function sanitize_html( $value ) {
+		function sanitize_custom_html( $value ) {
 			// nothing to save
 			return '';
 		}
@@ -993,8 +995,10 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 *
 		 * @return string
 		 */
-		function callback_html( $args ) {
-			$this->print_field_description( $args );
+		function callback_custom_html( $field ) {
+			$this->print_field_label( $field );
+			echo wp_kses_post( $field['description'] );
+
 		}
 
 
@@ -1313,9 +1317,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			$script = $this->get_type_conditional_script();
 			if ( ! empty( $script ) ) {
-
 				echo "<script>jQuery( document ).ready( function( $ ) {  $script  });</script>";
-
 			}
 
 
