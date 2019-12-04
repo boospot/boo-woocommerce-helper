@@ -83,6 +83,9 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				}
 
 				foreach ( $fields as $field ) {
+					if ( 'custom_html' === $field['type'] ) {
+						continue;
+					}
 					$dirty_value = isset( $_POST[ $field['name'] ][ $i ] ) ? $_POST[ $field['name'] ][ $i ] : '';
 					$clean_value = call_user_func(
 						( is_callable( $field['sanitize_callback'] ) )
@@ -113,6 +116,10 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				}
 
 				foreach ( $fields as $field ) {
+					if ( 'custom_html' === $field['type'] ) {
+						continue;
+					}
+
 					$dirty_value = isset( $_POST[ $field['name'] ] ) ? $_POST[ $field['name'] ] : '';
 					$clean_value = call_user_func(
 						( is_callable( $field['sanitize_callback'] ) )
