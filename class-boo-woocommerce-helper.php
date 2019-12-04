@@ -628,15 +628,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		/**
-		 * Modify name for Variable field
-		 */
-		public function get_variation_field_name( $field_name ) {
-
-			return 'variable' . $field_name;
-
-		}
-
-		/**
 		 *
 		 */
 		public function get_variation_hooks() {
@@ -664,11 +655,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 							$field,
 							$this->get_default_field_args( $field )
 						);
-						// Modify name if its related to variations
-						if ( $this->is_variation_hook( $tab_id ) ) {
-							$field['name'] = $this->get_variation_field_name( $field['name'] );
-						}
-
 
 						if ( ! is_array( $field['class'] ) ) {
 							$field['class'] = array( $field['class'] );
