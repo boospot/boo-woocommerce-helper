@@ -487,7 +487,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			foreach ( $this->get_custom_tabs() as $tab ) {
 				if ( ! empty( $tab['icon'] ) ) {
-					$this->var_dump_pretty( $tab['id'] );
 					$css .= ".{$tab['id']}_options a:before{ content: '{$tab['icon']}' !important }";
 				}
 			}
