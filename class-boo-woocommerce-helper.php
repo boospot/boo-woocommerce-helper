@@ -59,6 +59,11 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			add_action( 'woocommerce_save_product_variation', array( $this, 'save_custom_fields_variable' ), 10, 2 );
 
+			add_action( 'woocommerce_variation_options', array(
+				$this,
+				'register_variation_fields_display_hooks'
+			), 10, 3 );
+
 			$this->register_fields_display_hooks();
 
 		}
@@ -155,6 +160,40 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			// Call General Scripts
 			$this->script_general();
 
+		}
+
+		/**
+		 * Register hooks for fields display
+		 * include ONLY variation fields
+		 */
+		public function register_variation_fields_display_hooks( $loop, $variation_data, $variation ) {
+
+		    $this->var_dump_pretty( $loop );
+//			$this->var_dump_pretty( $variation_data );
+//			$this->var_dump_pretty( $variation );
+
+
+			foreach ( $this->get_fields() as $tab_id => $fields ) {
+				if ( ! $this->is_variation_hook( $tab_id ) ) {
+					continue;
+				}
+				$this->var_dump_pretty( $tab_id );
+
+				echo '<div class="options_group">';
+				foreach ( $fields as $field ) {
+					$field['name'] = $field['name'] . '[' . $loop . ']';
+					call_user_func(
+						( is_callable( $field['callback'] ) )
+							? $field['callback']
+							: $this->get_field_markup_callback_method( $field['type'] ),
+						$field
+					);
+					$this->print_field_description( $field );
+					printf( '</p>' );
+				}
+				echo '</div>';
+
+			}
 		}
 
 		/**
