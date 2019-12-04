@@ -57,7 +57,22 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			add_action( 'woocommerce_process_product_meta', array( $this, 'save_custom_fields' ) );
 
+			add_action( 'woocommerce_save_product_variation', array( $this, 'save_custom_fields_variable' ), 10, 2 );
+
 			$this->register_fields_display_hooks();
+
+		}
+
+		/**
+		 * @hooked woocommerce_save_product_variation
+		 */
+		public function save_custom_fields_variable( $variation_id, $i ) {
+
+			if ( doing_action( 'woocommerce_save_product_variation' ) ) {
+				$this->write_log( 'variable', var_export( $_POST, true ) );
+				$this->write_log( 'variable', var_export( $variation_id, true ) );
+				$this->write_log( 'variable', var_export( $i, true ) );
+			}
 
 		}
 
@@ -143,11 +158,16 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		}
 
 		/**
-		 *
+		 * Register hooks for fields display
+		 * DOES NOT include variation fields
 		 */
 		public function register_fields_display_hooks() {
 
 			foreach ( array_keys( $this->get_fields() ) as $tab_id ) {
+
+				if ( $this->is_variation_hook( $tab_id ) ) {
+					continue;
+				}
 
 				$this->active_tabs[] = $tab_id;
 				add_action( 'woocommerce_product_' . $tab_id, function () {
@@ -545,6 +565,31 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 		}
 
+		/**
+		 * Modify name for Variable field
+		 */
+		public function get_variable_field_name( $field_name ) {
+
+			return '_variable' . $field_name;
+
+		}
+
+		/**
+		 *
+		 */
+		public function get_variation_hooks() {
+
+			return array( 'after_variable_attributes' );
+
+		}
+
+		/**
+		 *
+		 */
+		public function is_variation_hook( $tab_id ) {
+			return in_array( $tab_id, $this->get_variation_hooks(), true );
+		}
+
 		public function normalize_fields() {
 
 			$admin_post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
@@ -557,6 +602,11 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 							$field,
 							$this->get_default_field_args( $field )
 						);
+						// Modify name if its related to variations
+						if ( $this->is_variation_hook( $tab_id ) ) {
+							$field['name'] = $this->get_variable_field_name( $field['name'] );
+						}
+
 
 						if ( ! is_array( $field['class'] ) ) {
 							$field['class'] = array( $field['class'] );
@@ -1200,8 +1250,9 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
                 if ( is{$type_id} ) {
                     $( '.show_if{$type_id}' ).show();
                 }
-            });
-            $( 'input#{$type_id}' ).trigger( 'change' ); ";
+            });";
+
+			$script .= "$( 'input#{$type_id}' ).trigger( 'change' ); ";
 
 			return $script;
 
