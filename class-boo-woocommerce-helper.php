@@ -485,6 +485,14 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			.woocommerce_options_panel span.upload-actions {   margin: 10px;   display: flex;   justify-content: space-between; }
 			';
 
+			foreach ( $this->get_custom_tabs() as $tab ) {
+				if ( ! empty( $tab['icon'] ) ) {
+					$this->var_dump_pretty( $tab['id'] );
+					$css .= ".{$tab['id']}_options a:before{ content: '{$tab['icon']}' !important }";
+				}
+			}
+
+
 			echo "<style>{$css}</style>";
 		}
 
@@ -575,6 +583,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 				'priority' => null,
 				'target'   => $tab['id'] . '_options',
 				'class'    => array( 'show_if_simple', 'show_if_variable', $tab['id'] ),
+				'icon'     => ''
 			);
 		}
 
