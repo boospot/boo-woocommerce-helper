@@ -59,7 +59,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			add_action( 'woocommerce_product_after_variable_attributes', array(
 				$this,
-				'register_variation_fields_display_hooks'
+				'display_custom_fields_variations'
 			), 10, 3 );
 
 			add_action( 'woocommerce_save_product_variation', array( $this, 'save_custom_fields_variations' ), 10, 2 );
@@ -194,8 +194,9 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		/**
 		 * Register hooks for fields display
 		 * include ONLY variation fields
+		 * @hooked woocommerce_product_after_variable_attributes
 		 */
-		public function register_variation_fields_display_hooks( $loop, $variation_data, $variation ) {
+		public function display_custom_fields_variations( $loop, $variation_data, $variation ) {
 
 			foreach ( $this->get_fields() as $tab_id => $fields ) {
 				if ( ! $this->is_variation_hook( $tab_id ) ) {
