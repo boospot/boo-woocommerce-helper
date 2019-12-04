@@ -57,12 +57,12 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 
 			add_action( 'woocommerce_process_product_meta', array( $this, 'save_custom_fields' ) );
 
-			add_action( 'woocommerce_save_product_variation', array( $this, 'save_custom_fields_variable' ), 10, 2 );
-
-			add_action( 'woocommerce_variation_options', array(
+			add_action( 'woocommerce_product_after_variable_attributes', array(
 				$this,
 				'register_variation_fields_display_hooks'
 			), 10, 3 );
+
+			add_action( 'woocommerce_save_product_variation', array( $this, 'save_custom_fields_variations' ), 10, 2 );
 
 			$this->register_fields_display_hooks();
 
@@ -71,13 +71,31 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		/**
 		 * @hooked woocommerce_save_product_variation
 		 */
-		public function save_custom_fields_variable( $variation_id, $i ) {
+		public function save_custom_fields_variations( $variation_id, $i ) {
 
-			if ( doing_action( 'woocommerce_save_product_variation' ) ) {
-				$this->write_log( 'variable', var_export( $_POST, true ) );
-				$this->write_log( 'variable', var_export( $variation_id, true ) );
-				$this->write_log( 'variable', var_export( $i, true ) );
+			$variation = wc_get_product( $variation_id );
+
+			foreach ( $this->get_fields() as $tab_id => $fields ) {
+
+				// We are only interested in Variation Hook
+				if ( ! $this->is_variation_hook( $tab_id ) ) {
+					continue;
+				}
+
+				foreach ( $fields as $field ) {
+					$dirty_value = isset( $_POST[ $field['name'] ][ $i ] ) ? $_POST[ $field['name'] ][ $i ] : '';
+					$clean_value = call_user_func(
+						( is_callable( $field['sanitize_callback'] ) )
+							? $field['sanitize_callback']
+							: $this->get_sanitize_callback_method( $field['type'] ),
+						$dirty_value
+					);
+					$variation->update_meta_data( $field['name'], $clean_value );
+				}
+
 			}
+
+			$variation->save();
 
 		}
 
@@ -89,6 +107,10 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			$product = wc_get_product( $post_id );
 
 			foreach ( $this->get_fields() as $tab_id => $fields ) {
+
+				if ( $this->is_variation_hook( $tab_id ) ) {
+					continue;
+				}
 
 				foreach ( $fields as $field ) {
 					$dirty_value = isset( $_POST[ $field['name'] ] ) ? $_POST[ $field['name'] ] : '';
@@ -168,20 +190,21 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		 */
 		public function register_variation_fields_display_hooks( $loop, $variation_data, $variation ) {
 
-		    $this->var_dump_pretty( $loop );
-//			$this->var_dump_pretty( $variation_data );
-//			$this->var_dump_pretty( $variation );
-
-
 			foreach ( $this->get_fields() as $tab_id => $fields ) {
 				if ( ! $this->is_variation_hook( $tab_id ) ) {
 					continue;
 				}
-				$this->var_dump_pretty( $tab_id );
 
 				echo '<div class="options_group">';
 				foreach ( $fields as $field ) {
-					$field['name'] = $field['name'] . '[' . $loop . ']';
+					// Update field for variation
+					$field['value'] =
+						( empty( $field['value'] ) )
+							? get_post_meta( $variation->ID, $field['name'], true )
+							: '';
+					$field['name']  = $field['name'] . '[' . $loop . ']';
+
+
 					call_user_func(
 						( is_callable( $field['callback'] ) )
 							? $field['callback']
@@ -607,9 +630,9 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 		/**
 		 * Modify name for Variable field
 		 */
-		public function get_variable_field_name( $field_name ) {
+		public function get_variation_field_name( $field_name ) {
 
-			return '_variable' . $field_name;
+			return 'variable' . $field_name;
 
 		}
 
@@ -643,7 +666,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 						);
 						// Modify name if its related to variations
 						if ( $this->is_variation_hook( $tab_id ) ) {
-							$field['name'] = $this->get_variable_field_name( $field['name'] );
+							$field['name'] = $this->get_variation_field_name( $field['name'] );
 						}
 
 
@@ -655,10 +678,14 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 							$field['wrapper_class'] = array( $field['wrapper_class'] );
 						}
 
-						$field['value'] =
-							( empty( $field['value'] ) && $admin_post_id )
-								? get_post_meta( $admin_post_id, $field['name'], true )
-								: '';
+						// Only update value if its NOT a variation hook
+						if ( $this->is_variation_hook( $tab_id ) ) {
+							$field['value'] =
+								( empty( $field['value'] ) && $admin_post_id )
+									? get_post_meta( $admin_post_id, $field['name'], true )
+									: '';
+						}
+
 
 						$data_type = empty( $field['data_type'] ) ? '' : $field['data_type'];
 						switch ( $data_type ) {
@@ -713,6 +740,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 							$field['description'] = $field['desc'];
 						}
 
+						// Update the actual $fields array
 						$this->fields[ $tab_id ][ $i ] = $field;
 
 					}
@@ -1281,6 +1309,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			$script = "
 			$( 'input#{$type_id}' ).change( function() {
                 var is{$type_id} = $( 'input#{$type_id}:checked' ).size();
+                console.log(is{$type_id});
                 $( '.show_if{$type_id}' ).hide();
                 $( '.hide_if{$type_id}' ).hide();
                 if ( is{$type_id} ) {
@@ -1289,9 +1318,14 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
                 if ( is{$type_id} ) {
                     $( '.show_if{$type_id}' ).show();
                 }
-            });";
+            }); ";
 
 			$script .= "$( 'input#{$type_id}' ).trigger( 'change' ); ";
+			$script .= "$( '.variations_options' ).click(function(){ 
+                            setTimeout(function(){ 
+                                $( '.woocommerce_variation h3' ).click(function(){ $( 'input#{$type_id}' ).trigger( 'change' )});
+                            }, 500 );
+                       }); ";
 
 			return $script;
 
