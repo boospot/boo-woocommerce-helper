@@ -1309,7 +1309,6 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 			$script = "
 			$( 'input#{$type_id}' ).change( function() {
                 var is{$type_id} = $( 'input#{$type_id}:checked' ).size();
-                console.log(is{$type_id});
                 $( '.show_if{$type_id}' ).hide();
                 $( '.hide_if{$type_id}' ).hide();
                 if ( is{$type_id} ) {
