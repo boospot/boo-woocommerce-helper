@@ -3,7 +3,7 @@
  * Name:        Boo WooCommerce helper class
  *
  * Version:     1.0.0
- * Author:        RaoAbid | BooSpot
+ * Author:      RaoAbid | BooSpot
  *
  * @author RaoAbid | BooSpot
  * @link https://github.com/boospot/boo-woocommerce-helper
@@ -681,7 +681,7 @@ if ( ! class_exists( 'Boo_Woocommerce_Helper' ) ):
 						}
 
 						// Only update value if its NOT a variation hook
-						if ( $this->is_variation_hook( $tab_id ) ) {
+						if ( ! $this->is_variation_hook( $tab_id ) ) {
 							$field['value'] =
 								( empty( $field['value'] ) && $admin_post_id )
 									? get_post_meta( $admin_post_id, $field['name'], true )
